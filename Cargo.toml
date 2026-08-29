@@ -1,32 +1,44 @@
 [package]
 name = "waterui-canvas"
 version = "0.1.0"
-edition.workspace = true
-authors.workspace = true
-license.workspace = true
-readme = "../../../README.md"
-repository.workspace = true
+edition = "2024"
+rust-version = "1.95"
+authors = ["Lexo Liu <me@lexo.cool>"]
+license = "Apache-2.0 OR MIT"
+readme = "README.md"
+repository = "https://github.com/water-rs/canvas"
 description = "Canvas 2D vector graphics for WaterUI using Vello"
 keywords = ["canvas", "2d", "graphics", "waterui", "vello"]
 categories = ["gui"]
 
+[lints.rust]
+missing_docs = "warn"
+missing_debug_implementations = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+style = { level = "warn", priority = -1 }
+correctness = { level = "warn", priority = -1 }
+complexity = { level = "warn", priority = -1 }
+suspicious = { level = "warn", priority = -1 }
+perf = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+cargo = { level = "warn", priority = -1 }
+undocumented_unsafe_blocks = "warn"
+multiple_crate_versions = "allow"
+
 [dependencies]
-waterui-core.workspace = true
-waterui-graphics = { workspace = true, features = ["gpu"] }
-nami.workspace = true
-kurbo.workspace = true
-peniko.workspace = true
-parley = { workspace = true, features = ["system"] }
-# Only `image::ImageError` is named here — decoding itself is delegated to
-# `waterui-graphics`. The codec list mirrors that crate's; `avif` is an encoder
-# nothing in the workspace calls.
+waterui-core = { version = "0.3.0", git = "https://github.com/water-rs/waterui.git", branch = "dev" }
+waterui-graphics = { version = "0.3.0", git = "https://github.com/water-rs/waterui.git", branch = "dev", features = ["gpu"] }
+nami = "0.11.0"
+kurbo = "0.13"
+peniko = "0.6"
+parley = { version = "0.11", default-features = false, features = ["system"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tiff"] }
 
 [dev-dependencies]
-waterui = { path = "../../.." }
-waterui-testing = { path = "../../../testing" }
-pollster.workspace = true
-wgpu.workspace = true
-
-[lints]
-workspace = true
+waterui = { git = "https://github.com/water-rs/waterui.git", branch = "dev" }
+waterui-testing = { git = "https://github.com/water-rs/waterui.git", branch = "dev" }
+pollster = "1.0"
+wgpu = "29.0.4"
