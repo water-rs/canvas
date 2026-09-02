@@ -54,6 +54,12 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      # The configuration the `image` feature exists to serve: vector-only
+      # consumers must keep compiling, and must not link the wgpu stack.
+      - name: Lean build stays lean
+        run: |
+          cargo check --no-default-features
+          ! cargo tree -e normal --no-default-features | grep wgpu
 
   msrv:
     name: MSRV
