@@ -28,17 +28,33 @@ cargo = { level = "warn", priority = -1 }
 undocumented_unsafe_blocks = "warn"
 multiple_crate_versions = "allow"
 
+[features]
+default = ["image"]
+# Raster images on the canvas: `CanvasImage`, the `draw_image*` family and the
+# `CanvasResource::Image` arm.
+#
+# Decoding goes through `waterui-graphics`'s `image_decode`, which that crate
+# gates behind its `gpu` feature, so asking for images here is what pulls the
+# whole wgpu stack in. Vector drawing needs none of it: a consumer that never
+# draws a decoded image — a CPU-only renderer such as a dew firmware build —
+# turns this feature off and links neither the codecs nor wgpu.
+image = ["dep:image", "waterui-graphics/gpu"]
+
 [dependencies]
 waterui-core = { version = "0.3.0", git = "https://github.com/water-rs/waterui.git", branch = "dev" }
-waterui-graphics = { version = "0.3.0", git = "https://github.com/water-rs/waterui.git", branch = "dev", features = ["gpu"] }
+waterui-graphics = { version = "0.3.0", git = "https://github.com/water-rs/waterui.git", branch = "dev", default-features = false }
 nami = "0.11.0"
 kurbo = "0.13"
 peniko = "0.6"
 parley = { version = "0.11", default-features = false, features = ["system"] }
-image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tiff"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tiff"], optional = true }
 
 [dev-dependencies]
 waterui = { git = "https://github.com/water-rs/waterui.git", branch = "dev" }
+# The scene-engine test renders a canvas through a real GPU runtime, so the
+# tests need the engine-backed half of the graphics crate even when the crate
+# under test is built without it.
+waterui-graphics = { version = "0.3.0", git = "https://github.com/water-rs/waterui.git", branch = "dev", features = ["gpu"] }
 waterui-testing = { git = "https://github.com/water-rs/waterui.git", branch = "dev" }
 pollster = "1.0"
 wgpu = "29.0.4"
