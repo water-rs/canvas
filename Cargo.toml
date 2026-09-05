@@ -41,8 +41,8 @@ default = ["image"]
 image = ["dep:image", "waterui-graphics/gpu"]
 
 [dependencies]
-waterui-core = { version = "0.3.0", git = "https://github.com/water-rs/waterui.git", branch = "dev" }
-waterui-graphics = { version = "0.3.0", git = "https://github.com/water-rs/waterui.git", branch = "dev", default-features = false }
+waterui-core = "0.3.0"
+waterui-graphics = { version = "0.3.0", default-features = false }
 nami = "0.11.0"
 kurbo = "0.13"
 peniko = "0.6"
@@ -50,11 +50,11 @@ parley = { version = "0.11", default-features = false, features = ["system"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tiff"], optional = true }
 
 [dev-dependencies]
-waterui = { git = "https://github.com/water-rs/waterui.git", branch = "dev" }
+waterui = "0.3.0"
 # The scene-engine test renders a canvas through a real GPU runtime, so the
 # tests need the engine-backed half of the graphics crate even when the crate
 # under test is built without it.
-waterui-graphics = { version = "0.3.0", git = "https://github.com/water-rs/waterui.git", branch = "dev", features = ["gpu"] }
-waterui-testing = { git = "https://github.com/water-rs/waterui.git", branch = "dev" }
+waterui-graphics = { version = "0.3.0", features = ["gpu"] }
+waterui-testing = "0.3.0"
 pollster = "1.0"
 wgpu = "29.0.4"
