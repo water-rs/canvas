@@ -9,7 +9,7 @@ use waterui_core::layout::{Point, Rect, Size};
 // Internal imports for rendering (not exposed to users)
 use kurbo::{self, Shape};
 
-use super::conversions::{point_to_kurbo, rect_to_kurbo};
+use super::conversions::{kurbo_to_rect, point_to_kurbo, rect_to_kurbo};
 
 /// Path builder for constructing complex shapes.
 ///
@@ -280,6 +280,20 @@ impl Path {
         self.inner.close_path();
     }
 
+    /// The tight bounding box of everything the path draws.
+    ///
+    /// `None` for a path with nothing in it yet. This is how a caller checks
+    /// what it actually drew — a fillet that escaped the corner it rounds, a
+    /// node outline that left its frame — without rasterising anything.
+    #[must_use]
+    pub fn bounding_box(&self) -> Option<Rect> {
+        if self.inner.elements().is_empty() {
+            return None;
+        }
+        let bounds = self.inner.bounding_box();
+        Some(kurbo_to_rect(bounds))
+    }
+
     /// Returns a reference to the inner `kurbo::BezPath`.
     ///
     /// This is used internally by the canvas renderer.
@@ -304,7 +318,7 @@ impl fmt::Debug for Path {
 }
 
 #[cfg(test)]
-mod arc_to_tests {
+mod path_tests {
     use super::{Path, Point};
 
     /// Every element after the first `MoveTo` must continue the same contour.
@@ -411,6 +425,27 @@ mod arc_to_tests {
         assert!(
             overshoot(&path, Point::new(0.0, 0.0), Point::new(10.0, 10.0)) < 0.5,
             "an oversized radius escaped its corner: {path:?}"
+        );
+    }
+
+    #[test]
+    fn an_empty_path_has_no_bounding_box() {
+        assert_eq!(Path::new().bounding_box(), None);
+    }
+
+    #[test]
+    fn a_bounding_box_covers_every_segment() {
+        let mut path = Path::new();
+        path.move_to(Point::new(10.0, 20.0));
+        path.line_to(Point::new(110.0, 20.0));
+        path.line_to(Point::new(110.0, 220.0));
+        let bounds = path.bounding_box().expect("a drawn path has bounds");
+        assert!(
+            (bounds.x() - 10.0).abs() < 1e-3
+                && (bounds.y() - 20.0).abs() < 1e-3
+                && (bounds.width() - 100.0).abs() < 1e-3
+                && (bounds.height() - 200.0).abs() < 1e-3,
+            "{bounds:?}"
         );
     }
 
