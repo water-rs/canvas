@@ -33,6 +33,16 @@
 //! })
 //! # }
 //! ```
+//!
+//! # Cargo features
+//!
+//! - `image` (default): raster images on the canvas — `CanvasImage`,
+//!   `ImageError`, `DrawingContext::draw_image`, `draw_image_scaled`,
+//!   `draw_image_sub` and the `CanvasResource::Image` arm. Decoding runs through
+//!   `waterui-graphics`'s `image_decode`, which that crate gates behind its
+//!   `gpu` feature, so this is the feature that pulls in the `wgpu` stack.
+//!   Vector drawing needs none of it: build with `default-features = false` on
+//!   a CPU-only target and neither the codecs nor `wgpu` are linked.
 
 extern crate alloc;
 
@@ -48,6 +58,7 @@ mod conversions;
 pub mod gradient;
 
 /// Image loading and handling for Canvas.
+#[cfg(feature = "image")]
 pub mod image;
 
 /// Text rendering support for Canvas.
@@ -62,6 +73,7 @@ pub use state::FillRule;
 
 pub use gradient::{ConicGradient, LinearGradient, RadialGradient};
 
+#[cfg(feature = "image")]
 pub use image::{CanvasImage, ImageError};
 
 pub use text::{FontSpec, FontStyle, FontWeight, TextMetrics};
@@ -193,11 +205,13 @@ struct ReactiveFrameState<'a> {
 #[derive(Debug, Clone, Copy)]
 pub enum CanvasResource<'a> {
     /// Raster image resource.
+    #[cfg(feature = "image")]
     Image(&'a CanvasImage),
     /// Plain text resource.
     Text(&'a str),
 }
 
+#[cfg(feature = "image")]
 impl<'a> From<&'a CanvasImage> for CanvasResource<'a> {
     fn from(value: &'a CanvasImage) -> Self {
         Self::Image(value)
@@ -376,6 +390,7 @@ impl DrawingContext<'_> {
         pos: impl IntoSignal<Point>,
     ) {
         match resource.into() {
+            #[cfg(feature = "image")]
             CanvasResource::Image(image) => self.draw_image(image, pos),
             CanvasResource::Text(text) => self.draw_text(text, pos),
         }
@@ -391,6 +406,7 @@ impl DrawingContext<'_> {
         rect: impl IntoSignal<Rect>,
     ) {
         match resource.into() {
+            #[cfg(feature = "image")]
             CanvasResource::Image(image) => self.draw_image_scaled(image, rect),
             CanvasResource::Text(text) => self.draw_text_in_rect(text, rect),
         }
@@ -824,6 +840,8 @@ impl DrawingContext<'_> {
 
     /// Draws an image at the specified position.
     ///
+    /// Requires the `image` feature.
+    ///
     /// The image is drawn at its natural size (1:1 pixel mapping).
     ///
     /// # Example
@@ -837,6 +855,7 @@ impl DrawingContext<'_> {
     /// # Ok(())
     /// # }
     /// ```
+    #[cfg(feature = "image")]
     pub fn draw_image(&mut self, image: &CanvasImage, pos: impl IntoSignal<Point>) {
         let pos = self.resolve_signal(pos);
         let size = image.size();
@@ -845,6 +864,8 @@ impl DrawingContext<'_> {
     }
 
     /// Draws an image scaled to fit the destination rectangle.
+    ///
+    /// Requires the `image` feature.
     ///
     /// # Arguments
     /// * `image` - The image to draw
@@ -862,6 +883,7 @@ impl DrawingContext<'_> {
     /// # Ok(())
     /// # }
     /// ```
+    #[cfg(feature = "image")]
     pub fn draw_image_scaled(&mut self, image: &CanvasImage, dest: impl IntoSignal<Rect>) {
         let dest = self.resolve_signal(dest);
         if self.skip_draw_for_zero_alpha() {
@@ -894,6 +916,8 @@ impl DrawingContext<'_> {
     ///
     /// This allows drawing only part of an image (sprite sheet support).
     ///
+    /// Requires the `image` feature.
+    ///
     /// # Arguments
     /// * `image` - The source image
     /// * `src` - Source rectangle (which part of the image to draw)
@@ -913,6 +937,7 @@ impl DrawingContext<'_> {
     /// # Ok(())
     /// # }
     /// ```
+    #[cfg(feature = "image")]
     pub fn draw_image_sub(
         &mut self,
         image: &CanvasImage,
@@ -1433,6 +1458,7 @@ mod tests {
         assert_eq!(ctx.measure_text("").height, 0.0);
     }
 
+    #[cfg(feature = "image")]
     #[test]
     fn draw_image_sub_maps_source_rect_onto_destination_rect() {
         let mut scene = TestScene::new();

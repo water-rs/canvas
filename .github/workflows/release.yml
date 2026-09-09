@@ -21,6 +21,10 @@ jobs:
           ref: main
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfontconfig1-dev libegl-dev libgbm-dev libwayland-dev libxkbcommon-dev libvulkan-dev
       - uses: MarcoIeni/release-plz-action@v0.5
         with:
           command: release
@@ -41,6 +45,10 @@ jobs:
           ref: main
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfontconfig1-dev libegl-dev libgbm-dev libwayland-dev libxkbcommon-dev libvulkan-dev
       - uses: MarcoIeni/release-plz-action@v0.5
         with:
           command: release-pr
