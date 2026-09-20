@@ -54,12 +54,12 @@ parley = { version = "0.11", default-features = false, features = ["system"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tiff"], optional = true }
 
 [dev-dependencies]
-waterui = "0.5.0"
+waterui = { git = "https://github.com/water-rs/waterui", rev = "b25438ae309d69c8a91c6ecc2580723ed1dd792b" }
 # The scene-engine test renders a canvas through a real GPU runtime, so the
 # tests need the engine-backed half of the graphics crate even when the crate
 # under test is built without it.
 waterui-graphics = { version = "0.5.0", features = ["gpu"] }
-waterui-testing = "0.5.0"
+waterui-testing = { git = "https://github.com/water-rs/waterui", rev = "b25438ae309d69c8a91c6ecc2580723ed1dd792b" }
 pollster = "1.0"
 wgpu = "29.0.4"
 
