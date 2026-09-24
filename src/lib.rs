@@ -162,7 +162,7 @@ impl Canvas {
     {
         Self::new(move |ctx| {
             ctx.track_signal(&signal);
-            draw(ctx, signal.get());
+            draw(ctx, signal.snapshot());
         })
     }
 }
@@ -304,13 +304,13 @@ impl DrawingContext<'_> {
     {
         let signal = value.into_signal();
         self.track_signal(&signal);
-        signal.get()
+        signal.snapshot()
     }
 
     fn resolve_f32(&mut self, value: impl IntoSignalF32) -> f32 {
         let signal = value.into_signal_f32();
         self.track_signal(&signal);
-        let resolved = signal.get();
+        let resolved = signal.snapshot();
         assert!(
             resolved.is_finite(),
             "Canvas f32 signal resolved to a non-finite value"
