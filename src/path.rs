@@ -7,7 +7,7 @@ use core::fmt;
 use waterui_core::layout::{Point, Rect, Size};
 
 // Internal imports for rendering (not exposed to users)
-use kurbo::{self, Shape};
+use cherenkov::kurbo::{self, Shape};
 
 use super::conversions::{kurbo_to_rect, point_to_kurbo, rect_to_kurbo};
 

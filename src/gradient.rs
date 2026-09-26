@@ -1,15 +1,15 @@
 //! Gradient builders for Canvas.
 //!
 //! This module provides HTML5 Canvas-style gradient builders that use
-//! WaterUI's native `ResolvedColor` type.
+//! WaterUI's `WorkingColor` type.
 
 use waterui_core::layout::Point;
-use waterui_graphics::color::ResolvedColor;
+use waterui_graphics::WorkingColor;
 
 // Internal imports for rendering
-use peniko;
+use cherenkov::Paint;
 
-use super::conversions::{point_to_kurbo, resolved_color_to_peniko};
+use super::conversions::point_to_kurbo;
 
 /// A color stop in a gradient.
 ///
@@ -19,13 +19,13 @@ pub struct ColorStop {
     /// Position along the gradient (0.0 to 1.0).
     pub offset: f32,
     /// Color at this position.
-    pub color: ResolvedColor,
+    pub color: WorkingColor,
 }
 
 impl ColorStop {
     /// Creates a new color stop.
     #[must_use]
-    pub fn new(offset: f32, color: impl Into<ResolvedColor>) -> Self {
+    pub fn new(offset: f32, color: impl Into<WorkingColor>) -> Self {
         Self {
             offset,
             color: color.into(),
@@ -73,32 +73,17 @@ impl LinearGradient {
     /// # Arguments
     /// * `offset` - Position (0.0 to 1.0) along the gradient
     /// * `color` - Color at this position
-    pub fn add_color_stop(&mut self, offset: f32, color: impl Into<ResolvedColor>) {
+    pub fn add_color_stop(&mut self, offset: f32, color: impl Into<WorkingColor>) {
         self.stops.push(ColorStop::new(offset, color));
     }
 
-    /// Builds the gradient into a peniko Brush for rendering.
+    /// Builds the gradient into a Cherenkov paint.
     #[must_use]
-    pub(crate) fn build(&self) -> peniko::Brush {
-        // Convert color stops to peniko format
-        let peniko_stops: Vec<peniko::ColorStop> = self
-            .stops
-            .iter()
-            .map(|stop| {
-                let peniko_color = resolved_color_to_peniko(stop.color);
-                peniko::ColorStop {
-                    offset: stop.offset,
-                    color: peniko_color.into(),
-                }
-            })
-            .collect();
-
-        // Create linear gradient
-        let gradient =
-            peniko::Gradient::new_linear(point_to_kurbo(self.start), point_to_kurbo(self.end))
-                .with_stops(&*peniko_stops);
-
-        peniko::Brush::Gradient(gradient)
+    pub(crate) fn build(&self) -> Paint {
+        let mut gradient =
+            cherenkov::LinearGradient::new(point_to_kurbo(self.start), point_to_kurbo(self.end));
+        gradient.stops = cherenkov_stops(&self.stops);
+        Paint::Linear(gradient)
     }
 }
 
@@ -147,36 +132,21 @@ impl RadialGradient {
     }
 
     /// Adds a color stop to the gradient.
-    pub fn add_color_stop(&mut self, offset: f32, color: impl Into<ResolvedColor>) {
+    pub fn add_color_stop(&mut self, offset: f32, color: impl Into<WorkingColor>) {
         self.stops.push(ColorStop::new(offset, color));
     }
 
-    /// Builds the gradient into a peniko Brush for rendering.
+    /// Builds the gradient into a Cherenkov paint.
     #[must_use]
-    pub(crate) fn build(&self) -> peniko::Brush {
-        // Convert color stops
-        let peniko_stops: Vec<peniko::ColorStop> = self
-            .stops
-            .iter()
-            .map(|stop| {
-                let peniko_color = resolved_color_to_peniko(stop.color);
-                peniko::ColorStop {
-                    offset: stop.offset,
-                    color: peniko_color.into(),
-                }
-            })
-            .collect();
-
-        // Create radial gradient
-        let gradient = peniko::Gradient::new_two_point_radial(
+    pub(crate) fn build(&self) -> Paint {
+        let mut gradient = cherenkov::RadialGradient::two_point(
             point_to_kurbo(self.center0),
-            self.radius0,
+            f64::from(self.radius0),
             point_to_kurbo(self.center1),
-            self.radius1,
-        )
-        .with_stops(&*peniko_stops);
-
-        peniko::Brush::Gradient(gradient)
+            f64::from(self.radius1),
+        );
+        gradient.stops = cherenkov_stops(&self.stops);
+        Paint::Radial(gradient)
     }
 }
 
@@ -220,31 +190,31 @@ impl ConicGradient {
     }
 
     /// Adds a color stop to the gradient.
-    pub fn add_color_stop(&mut self, offset: f32, color: impl Into<ResolvedColor>) {
+    pub fn add_color_stop(&mut self, offset: f32, color: impl Into<WorkingColor>) {
         self.stops.push(ColorStop::new(offset, color));
     }
 
-    /// Builds the gradient into a peniko Brush for rendering.
+    /// Builds the gradient into a Cherenkov paint: one full turn from
+    /// `start_angle`.
     #[must_use]
-    pub(crate) fn build(&self) -> peniko::Brush {
-        // Convert color stops
-        let peniko_stops: Vec<peniko::ColorStop> = self
-            .stops
-            .iter()
-            .map(|stop| {
-                let peniko_color = resolved_color_to_peniko(stop.color);
-                peniko::ColorStop {
-                    offset: stop.offset,
-                    color: peniko_color.into(),
-                }
-            })
-            .collect();
-
-        // Create sweep gradient
-        let gradient =
-            peniko::Gradient::new_sweep(point_to_kurbo(self.center), self.start_angle, 0.0)
-                .with_stops(&*peniko_stops);
-
-        peniko::Brush::Gradient(gradient)
+    pub(crate) fn build(&self) -> Paint {
+        let start = f64::from(self.start_angle);
+        let mut gradient = cherenkov::SweepGradient::new(
+            point_to_kurbo(self.center),
+            start,
+            start + core::f64::consts::TAU,
+        );
+        gradient.stops = cherenkov_stops(&self.stops);
+        Paint::Sweep(gradient)
     }
+}
+
+fn cherenkov_stops(stops: &[ColorStop]) -> Vec<cherenkov::ColorStop> {
+    stops
+        .iter()
+        .map(|stop| cherenkov::ColorStop {
+            offset: stop.offset,
+            color: stop.color,
+        })
+        .collect()
 }

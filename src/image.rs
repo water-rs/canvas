@@ -3,13 +3,16 @@
 //! This module provides image loading from various sources (raw pixels, PNG, JPEG)
 //! for use with the Canvas drawing API.
 
+use alloc::rc::Rc;
+use alloc::sync::Arc;
+use core::cell::RefCell;
 use core::fmt;
 use std::error::Error;
-use waterui_core::layout::Size;
-use waterui_graphics::image_decode::load_dynamic_image;
 
-// Internal imports for rendering
-use peniko;
+use cherenkov::{Image, ImageData, ResourceError, Rgba8};
+use waterui_core::layout::Size;
+use waterui_graphics::SceneResources;
+use waterui_graphics::image_decode::load_dynamic_image;
 
 /// An image that can be drawn on the canvas.
 ///
@@ -33,10 +36,16 @@ use peniko;
 /// # }
 /// ```
 pub struct CanvasImage {
-    /// Internal peniko image (not exposed to users)
-    image: peniko::ImageData,
+    pixels: Arc<[u8]>,
     width: u32,
     height: u32,
+    /// The handle minted by the engine this image was last drawn on.
+    uploaded: RefCell<Option<Uploaded>>,
+}
+
+struct Uploaded {
+    resources: Rc<dyn SceneResources>,
+    handle: Image<Rgba8>,
 }
 
 impl CanvasImage {
@@ -58,19 +67,11 @@ impl CanvasImage {
             });
         }
 
-        // Create peniko image from RGBA data
-        let image = peniko::ImageData {
-            data: peniko::Blob::from(pixels.to_vec()),
-            format: peniko::ImageFormat::Rgba8,
-            alpha_type: peniko::ImageAlphaType::Alpha,
-            width,
-            height,
-        };
-
         Ok(Self {
-            image,
+            pixels: Arc::from(pixels),
             width,
             height,
+            uploaded: RefCell::new(None),
         })
     }
 
@@ -90,19 +91,11 @@ impl CanvasImage {
         let height = rgba.height();
         let pixels = rgba.into_raw();
 
-        // Create peniko image
-        let image = peniko::ImageData {
-            data: peniko::Blob::from(pixels),
-            format: peniko::ImageFormat::Rgba8,
-            alpha_type: peniko::ImageAlphaType::Alpha,
-            width,
-            height,
-        };
-
         Ok(Self {
-            image,
+            pixels: Arc::from(pixels),
             width,
             height,
+            uploaded: RefCell::new(None),
         })
     }
 
@@ -125,12 +118,30 @@ impl CanvasImage {
         Size::new(self.width as f32, self.height as f32)
     }
 
-    /// Returns a reference to the internal peniko `ImageData`.
+    /// The engine handle for this image on `resources`, uploading it on the
+    /// first draw against that engine.
     ///
-    /// This is used internally by the canvas renderer.
-    #[must_use]
-    pub(crate) const fn inner(&self) -> &peniko::ImageData {
-        &self.image
+    /// # Errors
+    /// [`ResourceError`] when the engine rejects the upload.
+    pub(crate) fn handle(
+        &self,
+        resources: &Rc<dyn SceneResources>,
+    ) -> Result<cherenkov::ImageId, ResourceError> {
+        let mut uploaded = self.uploaded.borrow_mut();
+        if let Some(current) = uploaded
+            .as_ref()
+            .filter(|current| Rc::ptr_eq(&current.resources, resources))
+        {
+            return Ok(current.handle.id());
+        }
+        let data = ImageData::<Rgba8>::new(self.width, self.height, Arc::clone(&self.pixels))?;
+        let handle = resources.image(data)?;
+        let id = handle.id();
+        *uploaded = Some(Uploaded {
+            resources: Rc::clone(resources),
+            handle,
+        });
+        Ok(id)
     }
 }
 

@@ -7,8 +7,8 @@
 )]
 //! Canvas view for 2D vector graphics rendering.
 //!
-//! `Canvas` provides an easy-to-use API for drawing 2D graphics using Vello.
-//! It renders at full GPU speed while exposing a simple, declarative interface.
+//! `Canvas` provides an easy-to-use API for drawing 2D graphics, recorded as
+//! Cherenkov content and rendered by the backend's engine.
 //!
 //! # Example
 //!
@@ -51,8 +51,10 @@ pub mod state;
 /// Path construction API for Canvas.
 pub mod path;
 
-/// Conversion utilities between WaterUI and Vello types.
+/// Conversion utilities between WaterUI and Cherenkov types.
 mod conversions;
+
+mod ops;
 
 /// Gradient builders for Canvas.
 pub mod gradient;
@@ -80,8 +82,10 @@ pub use text::{FontSpec, FontStyle, FontWeight, TextMetrics};
 
 use alloc::boxed::Box;
 use alloc::rc::Rc;
+use alloc::sync::Arc;
 use core::any::Any;
 use core::cell::Cell;
+use std::collections::HashMap;
 
 use nami::Signal;
 use nami::signal::IntoSignal;
@@ -99,12 +103,13 @@ fn affine2_to_kurbo(t: Affine2) -> kurbo::Affine {
     ])
 }
 
-// Internal imports for rendering (not exposed to users)
-use kurbo::Shape as _;
+use cherenkov::kurbo;
+use cherenkov::{Draw as _, Group, Paint, ShapeData};
 
-use crate::conversions::{point_to_kurbo, rect_to_kurbo, resolved_color_to_peniko};
+use crate::conversions::{point_to_kurbo, rect_to_kurbo};
+use crate::ops::{Op, OpTree};
 use crate::state::{DrawingState, FillStyle, StrokeStyle};
-use waterui_graphics::{Glyph, GlyphRun, Scene2D, SceneContent, SceneInvalidator, SceneView};
+use waterui_graphics::{Scene, SceneContent, SceneInvalidator, SceneResources, SceneView};
 
 /// A canvas for 2D vector graphics rendering.
 ///
@@ -187,11 +192,56 @@ impl waterui_core::View for Canvas {
 struct TextEngine {
     font_cx: Option<parley::FontContext>,
     layout_cx: Option<parley::LayoutContext>,
+    /// Fonts registered with the engine the canvas last recorded for.
+    fonts: Option<EngineFonts>,
+}
+
+/// Fonts registered with one engine, keyed by parley font data id and index.
+struct EngineFonts {
+    resources: Rc<dyn SceneResources>,
+    fonts: HashMap<(u64, u32), cherenkov::Font>,
 }
 
 impl TextEngine {
     fn font_cx(&mut self) -> &mut parley::FontContext {
         self.font_cx.get_or_insert_with(parley::FontContext::new)
+    }
+
+    /// The engine's id for a shaped font, registering it on first use.
+    ///
+    /// # Panics
+    /// Panics when the engine cannot take the font: text the renderer cannot
+    /// shape is a configuration error, not something to draw around.
+    fn font(
+        &mut self,
+        resources: &Rc<dyn SceneResources>,
+        font: &parley::FontData,
+    ) -> cherenkov::FontId {
+        let fonts = match &mut self.fonts {
+            Some(fonts) if Rc::ptr_eq(&fonts.resources, resources) => &mut fonts.fonts,
+            _ => {
+                &mut self
+                    .fonts
+                    .insert(EngineFonts {
+                        resources: Rc::clone(resources),
+                        fonts: HashMap::new(),
+                    })
+                    .fonts
+            }
+        };
+        fonts
+            .entry((font.data.id(), font.index))
+            .or_insert_with(|| {
+                resources
+                    .font(cherenkov::FontSource {
+                        data: Arc::from(font.data.as_ref()),
+                        index: font.index,
+                    })
+                    .unwrap_or_else(|error| {
+                        panic!("waterui-canvas: the engine rejected a shaped font: {error}")
+                    })
+            })
+            .id()
     }
 }
 
@@ -238,7 +288,8 @@ impl<'a> From<&'a String> for CanvasResource<'a> {
 /// The context maintains a state stack for transforms, styles, and other
 /// drawing properties. Use `save()` and `restore()` to push and pop state.
 pub struct DrawingContext<'a> {
-    scene: &'a mut dyn Scene2D,
+    ops: OpTree,
+    resources: &'a Rc<dyn SceneResources>,
     /// Width of the canvas in pixels.
     pub width: f32,
     /// Height of the canvas in pixels.
@@ -323,12 +374,9 @@ impl DrawingContext<'_> {
     /// Call [`pop_layer`](Self::pop_layer) when done drawing in this layer.
     pub fn push_clip_rect(&mut self, rect: impl IntoSignal<Rect>) {
         let rect = self.resolve_signal(rect);
-        let kurbo_rect = rect_to_kurbo(rect);
-        let clip_path = kurbo_rect.to_path(0.1);
-        self.scene.push_clip_layer(
-            self.current_state.fill_rule,
+        self.ops.begin_clip(
             self.current_state.transform,
-            &clip_path,
+            ShapeData::Rect(rect_to_kurbo(rect)),
         );
     }
 
@@ -336,11 +384,8 @@ impl DrawingContext<'_> {
     ///
     /// Call [`pop_layer`](Self::pop_layer) when done drawing in this layer.
     pub fn push_clip_path(&mut self, path: &Path) {
-        self.scene.push_clip_layer(
-            self.current_state.fill_rule,
-            self.current_state.transform,
-            path.inner(),
-        );
+        let shape = self.path_shape(path);
+        self.ops.begin_clip(self.current_state.transform, shape);
     }
 
     /// Pushes a layer with alpha (opacity), clipping content to the given rectangle.
@@ -349,14 +394,11 @@ impl DrawingContext<'_> {
     pub fn push_alpha_rect(&mut self, alpha: impl IntoSignalF32, rect: impl IntoSignal<Rect>) {
         let alpha = self.resolve_f32(alpha);
         let rect = self.resolve_signal(rect);
-        let kurbo_rect = rect_to_kurbo(rect);
-        let clip_path = kurbo_rect.to_path(0.1);
-        self.scene.push_layer(
-            self.current_state.fill_rule,
-            self.current_state.blend_mode,
-            alpha.clamp(0.0, 1.0),
+        let group = self.group(alpha.clamp(0.0, 1.0));
+        self.ops.begin_layer(
             self.current_state.transform,
-            &clip_path,
+            ShapeData::Rect(rect_to_kurbo(rect)),
+            group,
         );
     }
 
@@ -365,18 +407,14 @@ impl DrawingContext<'_> {
     /// Call [`pop_layer`](Self::pop_layer) when done drawing in this layer.
     pub fn push_alpha_path(&mut self, alpha: impl IntoSignalF32, path: &Path) {
         let alpha = self.resolve_f32(alpha);
-        self.scene.push_layer(
-            self.current_state.fill_rule,
-            self.current_state.blend_mode,
-            alpha.clamp(0.0, 1.0),
-            self.current_state.transform,
-            path.inner(),
-        );
+        let group = self.group(alpha.clamp(0.0, 1.0));
+        let shape = self.path_shape(path);
+        self.ops.begin_layer(self.current_state.transform, shape, group);
     }
 
     /// Pops the current layer.
     pub fn pop_layer(&mut self) {
-        self.scene.pop_layer();
+        self.ops.end();
     }
 
     // ========================================================================
@@ -520,16 +558,8 @@ impl DrawingContext<'_> {
         if self.skip_draw_for_zero_alpha() {
             return;
         }
-        let brush = self.resolve_fill_style();
-        let pushed_alpha = self.push_global_alpha_layer_if_needed(path.inner());
-        self.scene.fill(
-            self.current_state.fill_rule,
-            self.current_state.transform,
-            &brush,
-            None,
-            path.inner(),
-        );
-        self.pop_global_alpha_layer_if_needed(pushed_alpha);
+        let shape = self.path_shape(path);
+        self.fill_shape(shape);
     }
 
     /// Strokes a path with the current stroke style and line properties.
@@ -537,17 +567,8 @@ impl DrawingContext<'_> {
         if self.skip_draw_for_zero_alpha() {
             return;
         }
-        let brush = self.resolve_stroke_style();
-        let stroke = self.current_state.build_stroke();
-        let pushed_alpha = self.push_global_alpha_layer_if_needed(path.inner());
-        self.scene.stroke(
-            &stroke,
-            self.current_state.transform,
-            &brush,
-            None,
-            path.inner(),
-        );
-        self.pop_global_alpha_layer_if_needed(pushed_alpha);
+        let shape = self.path_shape(path);
+        self.stroke_shape(shape);
     }
 
     // ========================================================================
@@ -560,18 +581,7 @@ impl DrawingContext<'_> {
         if self.skip_draw_for_zero_alpha() {
             return;
         }
-        let kurbo_rect = rect_to_kurbo(rect);
-        let shape_path = kurbo_rect.to_path(0.1);
-        let brush = self.resolve_fill_style();
-        let pushed_alpha = self.push_global_alpha_layer_if_needed(&shape_path);
-        self.scene.fill(
-            self.current_state.fill_rule,
-            self.current_state.transform,
-            &brush,
-            None,
-            &shape_path,
-        );
-        self.pop_global_alpha_layer_if_needed(pushed_alpha);
+        self.fill_shape(ShapeData::Rect(rect_to_kurbo(rect)));
     }
 
     /// Strokes a rectangle with the current stroke style.
@@ -580,34 +590,17 @@ impl DrawingContext<'_> {
         if self.skip_draw_for_zero_alpha() {
             return;
         }
-        let kurbo_rect = rect_to_kurbo(rect);
-        let shape_path = kurbo_rect.to_path(0.1);
-        let brush = self.resolve_stroke_style();
-        let stroke = self.current_state.build_stroke();
-        let pushed_alpha = self.push_global_alpha_layer_if_needed(&shape_path);
-        self.scene.stroke(
-            &stroke,
-            self.current_state.transform,
-            &brush,
-            None,
-            &shape_path,
-        );
-        self.pop_global_alpha_layer_if_needed(pushed_alpha);
+        self.stroke_shape(ShapeData::Rect(rect_to_kurbo(rect)));
     }
 
     /// Clears a rectangle to transparent black.
     pub fn clear_rect(&mut self, rect: impl IntoSignal<Rect>) {
         let rect = self.resolve_signal(rect);
-        let kurbo_rect = rect_to_kurbo(rect);
-        let shape_path = kurbo_rect.to_path(0.1);
-        let brush: peniko::Brush = peniko::Color::TRANSPARENT.into();
-        self.scene.fill(
-            self.current_state.fill_rule,
-            self.current_state.transform,
-            &brush,
-            None,
-            &shape_path,
-        );
+        self.ops.push(Op::Fill {
+            transform: self.current_state.transform,
+            shape: ShapeData::Rect(rect_to_kurbo(rect)),
+            paint: Paint::Solid(waterui_graphics::WorkingColor::TRANSPARENT),
+        });
     }
 
     // ========================================================================
@@ -621,18 +614,8 @@ impl DrawingContext<'_> {
         if self.skip_draw_for_zero_alpha() {
             return;
         }
-        let brush = self.resolve_fill_style();
         let circle = kurbo::Circle::new(point_to_kurbo(center), f64::from(radius));
-        let shape_path = circle.to_path(0.1);
-        let pushed_alpha = self.push_global_alpha_layer_if_needed(&shape_path);
-        self.scene.fill(
-            self.current_state.fill_rule,
-            self.current_state.transform,
-            &brush,
-            None,
-            &shape_path,
-        );
-        self.pop_global_alpha_layer_if_needed(pushed_alpha);
+        self.fill_shape(ShapeData::Circle(circle));
     }
 
     /// Strokes a circle with the current stroke style.
@@ -642,19 +625,8 @@ impl DrawingContext<'_> {
         if self.skip_draw_for_zero_alpha() {
             return;
         }
-        let brush = self.resolve_stroke_style();
-        let stroke = self.current_state.build_stroke();
         let circle = kurbo::Circle::new(point_to_kurbo(center), f64::from(radius));
-        let shape_path = circle.to_path(0.1);
-        let pushed_alpha = self.push_global_alpha_layer_if_needed(&shape_path);
-        self.scene.stroke(
-            &stroke,
-            self.current_state.transform,
-            &brush,
-            None,
-            &shape_path,
-        );
-        self.pop_global_alpha_layer_if_needed(pushed_alpha);
+        self.stroke_shape(ShapeData::Circle(circle));
     }
 
     /// Strokes a line segment with the current stroke style.
@@ -664,19 +636,8 @@ impl DrawingContext<'_> {
         if self.skip_draw_for_zero_alpha() {
             return;
         }
-        let brush = self.resolve_stroke_style();
-        let stroke = self.current_state.build_stroke();
         let line = kurbo::Line::new(point_to_kurbo(start), point_to_kurbo(end));
-        let shape_path = line.to_path(0.1);
-        let pushed_alpha = self.push_global_alpha_layer_if_needed(&shape_path);
-        self.scene.stroke(
-            &stroke,
-            self.current_state.transform,
-            &brush,
-            None,
-            &shape_path,
-        );
-        self.pop_global_alpha_layer_if_needed(pushed_alpha);
+        self.stroke_shape(ShapeData::Line(line));
     }
 
     // ========================================================================
@@ -745,7 +706,7 @@ impl DrawingContext<'_> {
     /// `NonZero` (default): A point is inside the path if a ray from the point crosses a non-zero net number of path segments.
     /// `EvenOdd`: A point is inside the path if a ray from the point crosses an odd number of path segments.
     pub const fn set_fill_rule(&mut self, rule: FillRule) {
-        self.current_state.fill_rule = rule.to_peniko();
+        self.current_state.fill_rule = rule.to_cherenkov();
     }
 
     // ========================================================================
@@ -889,26 +850,15 @@ impl DrawingContext<'_> {
         if self.skip_draw_for_zero_alpha() {
             return;
         }
-        // Calculate transform to scale image to destination rectangle
-        let scale_x = f64::from(dest.size().width) / f64::from(image.width());
-        let scale_y = f64::from(dest.size().height) / f64::from(image.height());
-
-        // Create transform: translate to dest position, then scale
-        let image_transform =
-            kurbo::Affine::translate((f64::from(dest.origin().x), f64::from(dest.origin().y)))
-                * kurbo::Affine::scale_non_uniform(scale_x, scale_y);
-
-        // Compose with current transform
-        let final_transform = self.current_state.transform * image_transform;
-
-        // Wrap ImageData in ImageBrush
-        let image_brush = peniko::ImageBrush::new(image.inner().clone());
-        let dest_rect = rect_to_kurbo(dest);
-        let dest_path = dest_rect.to_path(0.1);
-        let pushed_alpha = self.push_global_alpha_layer_if_needed(&dest_path);
-
-        // Draw image using vello
-        self.scene.draw_image(&image_brush, final_transform);
+        let target = rect_to_kurbo(dest);
+        let id = self.image_id(image);
+        let pushed_alpha = self.push_global_alpha_layer_if_needed(ShapeData::Rect(target));
+        self.ops.push(Op::Image {
+            transform: self.current_state.transform,
+            image: id,
+            dst: target,
+            sampling: cherenkov::Sampling::Linear,
+        });
         self.pop_global_alpha_layer_if_needed(pushed_alpha);
     }
 
@@ -949,50 +899,36 @@ impl DrawingContext<'_> {
         if self.skip_draw_for_zero_alpha() {
             return;
         }
-        // Use push_clip_layer with clip to render only the source rectangle
-        // Calculate transform for the sub-rectangle
-
-        // First, translate to negate the source offset
+        // A source point is first shifted by -src origin, then scaled, then
+        // translated to the destination. kurbo's `Affine` multiplication
+        // applies the RIGHT operand first, so the source offset sits rightmost.
         let src_offset =
             kurbo::Affine::translate((-f64::from(src.origin().x), -f64::from(src.origin().y)));
-
-        // Then scale from source size to destination size
         let scale_x = f64::from(dest.size().width) / f64::from(src.size().width);
         let scale_y = f64::from(dest.size().height) / f64::from(src.size().height);
         let scale = kurbo::Affine::scale_non_uniform(scale_x, scale_y);
-
-        // Finally, translate to destination position
         let dest_offset =
             kurbo::Affine::translate((f64::from(dest.origin().x), f64::from(dest.origin().y)));
-
-        // Compose transforms so a source point is first shifted by -src origin,
-        // then scaled, then translated to the destination. kurbo's `Affine`
-        // multiplication applies the RIGHT operand first, so the source offset
-        // must sit rightmost.
         let image_transform = dest_offset * scale * src_offset;
 
-        // Compose with current transform
-        let final_transform = self.current_state.transform * image_transform;
-
-        // Create clip rectangle at destination
-        let clip_rect = rect_to_kurbo(dest);
-        let clip_path = clip_rect.to_path(0.1);
-
-        // Push a clipped layer, draw the image, then pop
-        self.scene.push_clip_layer(
-            self.current_state.fill_rule,
-            self.current_state.transform,
-            &clip_path,
+        let clip = ShapeData::Rect(rect_to_kurbo(dest));
+        let id = self.image_id(image);
+        let whole = kurbo::Rect::new(
+            0.0,
+            0.0,
+            f64::from(image.width()),
+            f64::from(image.height()),
         );
-        let pushed_alpha = self.push_global_alpha_layer_if_needed(&clip_path);
-
-        // Wrap ImageData in ImageBrush
-        let image_brush = peniko::ImageBrush::new(image.inner().clone());
-
-        self.scene.draw_image(&image_brush, final_transform);
-
+        self.ops.begin_clip(self.current_state.transform, clip.clone());
+        let pushed_alpha = self.push_global_alpha_layer_if_needed(clip);
+        self.ops.push(Op::Image {
+            transform: self.current_state.transform * image_transform,
+            image: id,
+            dst: whole,
+            sampling: cherenkov::Sampling::Linear,
+        });
         self.pop_global_alpha_layer_if_needed(pushed_alpha);
-        self.scene.pop_layer();
+        self.ops.end();
     }
 
     // ========================================================================
@@ -1062,14 +998,12 @@ impl DrawingContext<'_> {
             return;
         }
         let layout = self.build_text_layout(text, Some(rect.width()));
-        let clip_path = rect_to_kurbo(rect).to_path(0.1);
-        self.scene.push_clip_layer(
-            self.current_state.fill_rule,
+        self.ops.begin_clip(
             self.current_state.transform,
-            &clip_path,
+            ShapeData::Rect(rect_to_kurbo(rect)),
         );
         self.draw_text_layout(&layout, rect.origin());
-        self.scene.pop_layer();
+        self.ops.end();
     }
 
     /// Fills text at the specified position.
@@ -1085,35 +1019,34 @@ impl DrawingContext<'_> {
 
         let pos = self.resolve_signal(pos);
         let layout = self.build_text_layout(text, None);
-        let brush = self.resolve_stroke_style();
+        let paint = self.resolve_stroke_style();
         let stroke = self.current_state.build_stroke();
-        self.draw_text_layout_with_style(&layout, pos, &brush, (&stroke).into());
+        self.draw_text_layout_with_style(
+            &layout,
+            pos,
+            &paint,
+            &cherenkov::GlyphStyle::Stroke(stroke),
+        );
     }
 
     // ========================================================================
     // Internal Helper Methods
     // ========================================================================
 
-    /// Resolves the current fill style to a peniko brush.
-    fn resolve_fill_style(&self) -> peniko::Brush {
+    /// Resolves the current fill style to a paint.
+    fn resolve_fill_style(&self) -> Paint {
         match &self.current_state.fill_style {
-            FillStyle::Color(color) => {
-                let peniko_color = resolved_color_to_peniko(*color);
-                peniko_color.into()
-            }
+            FillStyle::Color(color) => Paint::Solid(*color),
             FillStyle::LinearGradient(gradient) => gradient.build(),
             FillStyle::RadialGradient(gradient) => gradient.build(),
             FillStyle::ConicGradient(gradient) => gradient.build(),
         }
     }
 
-    /// Resolves the current stroke style to a peniko brush.
-    fn resolve_stroke_style(&self) -> peniko::Brush {
+    /// Resolves the current stroke style to a paint.
+    fn resolve_stroke_style(&self) -> Paint {
         match &self.current_state.stroke_style {
-            StrokeStyle::Color(color) => {
-                let peniko_color = resolved_color_to_peniko(*color);
-                peniko_color.into()
-            }
+            StrokeStyle::Color(color) => Paint::Solid(*color),
             StrokeStyle::LinearGradient(gradient) => gradient.build(),
             StrokeStyle::RadialGradient(gradient) => gradient.build(),
             StrokeStyle::ConicGradient(gradient) => gradient.build(),
@@ -1130,25 +1063,72 @@ impl DrawingContext<'_> {
         self.normalized_global_alpha() <= 0.0
     }
 
-    fn push_global_alpha_layer_if_needed(&mut self, clip_shape: &kurbo::BezPath) -> bool {
+    /// The current path's shape under the current fill rule.
+    fn path_shape(&self, path: &Path) -> ShapeData {
+        ShapeData::Path {
+            elements: path.inner().elements().to_vec(),
+            rule: self.current_state.fill_rule,
+        }
+    }
+
+    const fn group(&self, opacity: f32) -> Group {
+        let mut group = Group::new();
+        group.opacity = opacity;
+        group.blend = self.current_state.blend_mode;
+        group
+    }
+
+    fn fill_shape(&mut self, shape: ShapeData) {
+        let paint = self.resolve_fill_style();
+        let pushed_alpha = self.push_global_alpha_layer_if_needed(shape.clone());
+        self.ops.push(Op::Fill {
+            transform: self.current_state.transform,
+            shape,
+            paint,
+        });
+        self.pop_global_alpha_layer_if_needed(pushed_alpha);
+    }
+
+    fn stroke_shape(&mut self, shape: ShapeData) {
+        let paint = self.resolve_stroke_style();
+        let stroke = self.current_state.build_stroke();
+        let pushed_alpha = self.push_global_alpha_layer_if_needed(shape.clone());
+        self.ops.push(Op::Stroke {
+            transform: self.current_state.transform,
+            shape,
+            stroke,
+            paint,
+        });
+        self.pop_global_alpha_layer_if_needed(pushed_alpha);
+    }
+
+    /// The engine handle for `image`.
+    ///
+    /// # Panics
+    /// Panics when the backend's engine rejects the upload: the canvas cannot
+    /// draw an image the renderer has no texture for.
+    #[cfg(feature = "image")]
+    fn image_id(&self, image: &CanvasImage) -> cherenkov::ImageId {
+        image.handle(self.resources).unwrap_or_else(|error| {
+            panic!("waterui-canvas: the engine rejected an image upload: {error}")
+        })
+    }
+
+    fn push_global_alpha_layer_if_needed(&mut self, clip_shape: ShapeData) -> bool {
         let alpha = self.normalized_global_alpha();
         if alpha >= 1.0 {
             return false;
         }
-        self.scene.push_layer(
-            self.current_state.fill_rule,
-            self.current_state.blend_mode,
-            alpha,
-            self.current_state.transform,
-            clip_shape,
-        );
+        let group = self.group(alpha);
+        self.ops
+            .begin_layer(self.current_state.transform, clip_shape, group);
         true
     }
 
     #[inline]
     fn pop_global_alpha_layer_if_needed(&mut self, pushed: bool) {
         if pushed {
-            self.scene.pop_layer();
+            self.ops.end();
         }
     }
 
@@ -1157,55 +1137,70 @@ impl DrawingContext<'_> {
     }
 
     fn draw_text_layout(&mut self, layout: &parley::Layout<[u8; 4]>, origin: Point) {
-        let brush = self.resolve_fill_style();
-        self.draw_text_layout_with_style(layout, origin, &brush, peniko::Fill::NonZero.into());
+        let paint = self.resolve_fill_style();
+        self.draw_text_layout_with_style(layout, origin, &paint, &cherenkov::GlyphStyle::Fill);
     }
 
     fn draw_text_layout_with_style(
         &mut self,
         layout: &parley::Layout<[u8; 4]>,
         origin: Point,
-        brush: &peniko::Brush,
-        style: peniko::StyleRef<'_>,
+        paint: &Paint,
+        style: &cherenkov::GlyphStyle,
     ) {
         if layout.is_empty() {
             return;
         }
 
-        let alpha = self.normalized_global_alpha();
         let transform = self.current_state.transform
             * kurbo::Affine::translate((f64::from(origin.x), f64::from(origin.y)));
-        let mut glyphs = Vec::new();
+        let bounds = kurbo::Rect::new(
+            0.0,
+            0.0,
+            f64::from(layout.full_width()),
+            f64::from(layout.height()),
+        );
+        let alpha = self.normalized_global_alpha();
+        let pushed_alpha = alpha < 1.0 && {
+            let group = self.group(alpha);
+            self.ops.begin_layer(transform, ShapeData::Rect(bounds), group);
+            true
+        };
         for line in layout.lines() {
             for item in line.items() {
                 if let parley::PositionedLayoutItem::GlyphRun(glyph_run) = item {
                     let run = glyph_run.run();
                     let mut run_x = glyph_run.offset();
                     let run_y = glyph_run.baseline();
-                    glyphs.clear();
-                    glyphs.extend(glyph_run.glyphs().map(|glyph| {
-                        let positioned = Glyph {
-                            id: glyph.id,
-                            x: run_x + glyph.x,
-                            y: run_y - glyph.y,
-                        };
-                        run_x += glyph.advance;
-                        positioned
-                    }));
-
-                    self.scene.draw_glyph_run(&GlyphRun {
-                        font: run.font(),
-                        font_size: run.font_size(),
-                        normalized_coords: run.normalized_coords(),
+                    let glyphs = glyph_run
+                        .glyphs()
+                        .map(|glyph| {
+                            let positioned = cherenkov::Glyph {
+                                id: glyph.id,
+                                x: run_x + glyph.x,
+                                y: run_y - glyph.y,
+                                transform: None,
+                            };
+                            run_x += glyph.advance;
+                            positioned
+                        })
+                        .collect();
+                    let font = self.text_engine.font(self.resources, run.font());
+                    self.ops.push(Op::Glyphs {
                         transform,
-                        brush,
-                        brush_alpha: alpha,
-                        style,
-                        glyphs: &glyphs,
+                        run: cherenkov::GlyphRun {
+                            font,
+                            size: run.font_size(),
+                            coords: run.normalized_coords().to_vec(),
+                            glyphs,
+                            style: style.clone(),
+                        },
+                        paint: paint.clone(),
                     });
                 }
             }
         }
+        self.pop_global_alpha_layer_if_needed(pushed_alpha);
     }
 }
 
@@ -1263,14 +1258,14 @@ struct CanvasContent {
 }
 
 impl SceneContent for CanvasContent {
-    #[allow(clippy::cast_precision_loss)]
-    fn build_scene(&mut self, scene: &mut dyn Scene2D, width: f32, height: f32) -> bool {
+    fn record(&mut self, scene: &mut Scene<'_>) -> bool {
         self.active_guards.clear();
         self.pending_redraw.set(false);
         let mut ctx = DrawingContext {
-            scene,
-            width,
-            height,
+            ops: OpTree::new(),
+            resources: scene.resources(),
+            width: scene.width(),
+            height: scene.height(),
             state_stack: Vec::new(),
             current_state: DrawingState::new(),
             reactive: ReactiveFrameState {
@@ -1283,6 +1278,10 @@ impl SceneContent for CanvasContent {
         };
         (self.draw_fn)(&mut ctx);
         let requested_next_frame = ctx.requested_next_frame;
+        let picture = ctx.ops.finish();
+        scene
+            .recorder()
+            .picture(&picture, kurbo::Affine::IDENTITY);
         requested_next_frame || self.pending_redraw.replace(false)
     }
 
@@ -1294,150 +1293,22 @@ impl SceneContent for CanvasContent {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::text::FontSpec;
+    use cherenkov::Command;
+    use waterui_core::layout::{Point, Rect, Size};
+    use waterui_graphics::OffscreenRenderer;
+    use waterui_graphics::color::Srgb;
 
-    struct TestScene {
-        stroked_glyph_run: bool,
-        image_transforms: Vec<kurbo::Affine>,
-    }
-
-    impl TestScene {
-        const fn new() -> Self {
-            Self {
-                stroked_glyph_run: false,
-                image_transforms: Vec::new(),
-            }
-        }
-    }
-
-    impl Scene2D for TestScene {
-        fn fill(
-            &mut self,
-            _fill: peniko::Fill,
-            _transform: kurbo::Affine,
-            _brush: &peniko::Brush,
-            _brush_transform: Option<kurbo::Affine>,
-            _shape: &kurbo::BezPath,
-        ) {
-        }
-
-        fn stroke(
-            &mut self,
-            _stroke: &kurbo::Stroke,
-            _transform: kurbo::Affine,
-            _brush: &peniko::Brush,
-            _brush_transform: Option<kurbo::Affine>,
-            _shape: &kurbo::BezPath,
-        ) {
-        }
-
-        fn push_layer(
-            &mut self,
-            _fill: peniko::Fill,
-            _blend: peniko::BlendMode,
-            _alpha: f32,
-            _transform: kurbo::Affine,
-            _clip: &kurbo::BezPath,
-        ) {
-        }
-
-        fn push_clip_layer(
-            &mut self,
-            _fill: peniko::Fill,
-            _transform: kurbo::Affine,
-            _clip: &kurbo::BezPath,
-        ) {
-        }
-
-        fn pop_layer(&mut self) {}
-
-        fn draw_image(&mut self, _image: &peniko::ImageBrush, transform: kurbo::Affine) {
-            self.image_transforms.push(transform);
-        }
-
-        fn draw_glyph_run(&mut self, run: &waterui_graphics::GlyphRun<'_>) {
-            if matches!(run.style, peniko::StyleRef::Stroke(_)) {
-                self.stroked_glyph_run = true;
-            }
-        }
-
-        fn reset(&mut self) {}
-    }
-
-    /// Draws every kind of command a scene carries: solid and gradient fills,
-    /// a stroke, a clipped layer, and a run of text.
-    fn draw_every_command(ctx: &mut DrawingContext<'_>) {
-        ctx.set_fill_style(waterui_graphics::color::Srgb::new(0.09, 0.10, 0.15));
-        ctx.fill_rect(Rect::from_size(Size::new(ctx.width, ctx.height)));
-
-        let mut gradient = ctx.create_linear_gradient(24.0, 24.0, 216.0, 120.0);
-        gradient.add_color_stop(0.0, waterui_graphics::color::Srgb::new(0.95, 0.55, 0.66));
-        gradient.add_color_stop(1.0, waterui_graphics::color::Srgb::new(0.35, 0.63, 0.94));
-        ctx.set_fill_style(gradient);
-        ctx.fill_rect(Rect::new(Point::new(24.0, 24.0), Size::new(192.0, 96.0)));
-
-        ctx.set_stroke_style(waterui_graphics::color::Srgb::new(1.0, 0.84, 0.32));
-        ctx.set_line_width(6.0);
-        ctx.stroke_circle(Point::new(300.0, 72.0), 40.0);
-
-        ctx.push_clip_rect(Rect::new(Point::new(24.0, 140.0), Size::new(150.0, 60.0)));
-        ctx.set_fill_style(waterui_graphics::color::Srgb::new(0.40, 0.85, 0.60));
-        ctx.fill_circle(Point::new(96.0, 170.0), 60.0);
-        ctx.pop_layer();
-
-        ctx.set_fill_style(waterui_graphics::color::Srgb::new(0.98, 0.98, 1.0));
-        ctx.set_font(FontSpec::new("", 28.0));
-        ctx.fill_text("Scene engines", Point::new(200.0, 170.0));
-    }
-
-    /// Renders the same drawing through both scene engines.
-    ///
-    /// This machine's GPU runs the compute pipeline, so it can run either
-    /// engine; a device without indirect execution can only run the hybrid one,
-    /// and this is how the two are compared where both are available. The PNGs
-    /// are for looking at — the engines rasterize differently, so nothing about
-    /// them is asserted pixel-wise.
-    #[test]
-    fn both_scene_engines_render_a_canvas() {
-        use waterui_graphics::shared_context::SceneEngine;
-        use waterui_graphics::{GpuRuntime, OffscreenRenderConfig, OffscreenSize};
-
-        let directory = std::path::Path::new("/tmp/waterui_scene_engines");
-        std::fs::create_dir_all(directory).expect("output directory must be creatable");
-        let runtime = pollster::block_on(GpuRuntime::new())
-            .expect("scene engine comparison requires a working GPU runtime");
-        let size = OffscreenSize::try_from_pixels(400, 220).expect("test size must be valid");
-
-        for (engine, name) in [
-            (SceneEngine::Classic, "classic"),
-            (SceneEngine::Hybrid, "hybrid"),
-        ] {
-            let surface = SceneView::new(CanvasContent {
-                draw_fn: Box::new(draw_every_command),
-                invalidator: None,
-                pending_redraw: Rc::new(Cell::new(false)),
-                active_guards: Vec::new(),
-                text_engine: TextEngine::default(),
-            })
-            .into_gpu_surface();
-            let config = OffscreenRenderConfig::new(size)
-                .format(wgpu::TextureFormat::Rgba8Unorm)
-                .scene_engine(engine);
-            let mut env = waterui_core::Environment::new();
-            let output = pollster::block_on(surface.render_offscreen(&runtime, config, &mut env))
-                .expect("offscreen render should succeed");
-            output
-                .save_png(directory.join(alloc::format!("{name}.png")))
-                .expect("png should be written");
-        }
-    }
-
-    #[test]
-    fn measure_text_uses_real_layout_metrics() {
-        let mut scene = TestScene::new();
+    /// A drawing callback and everything it needs, recorded through a CPU
+    /// engine so fonts and images get real handles.
+    fn record(draw: impl FnOnce(&mut DrawingContext<'_>)) -> Vec<Command> {
+        let renderer = OffscreenRenderer::cpu().expect("the raster engine needs no device");
+        let resources = renderer.resources();
         let mut text_engine = TextEngine::default();
         let mut guards = Vec::new();
         let mut ctx = DrawingContext {
-            scene: &mut scene,
+            ops: OpTree::new(),
+            resources: &resources,
             width: 640.0,
             height: 480.0,
             state_stack: Vec::new(),
@@ -1450,51 +1321,132 @@ mod tests {
             text_engine: &mut text_engine,
             requested_next_frame: false,
         };
+        draw(&mut ctx);
+        ctx.ops.finish().display_list().commands().to_vec()
+    }
 
-        let metrics = ctx.measure_text("Hello, canvas");
-        assert!(metrics.width > 0.0, "expected positive text width");
-        assert!(metrics.height > 0.0, "expected positive text height");
-        assert_eq!(ctx.measure_text("").width, 0.0);
-        assert_eq!(ctx.measure_text("").height, 0.0);
+    /// Draws every kind of command a scene carries: solid and gradient fills,
+    /// a stroke, a clipped layer, and a run of text.
+    fn draw_every_command(ctx: &mut DrawingContext<'_>) {
+        ctx.set_fill_style(Srgb::new(0.09, 0.10, 0.15));
+        ctx.fill_rect(Rect::from_size(Size::new(ctx.width, ctx.height)));
+
+        let mut gradient = ctx.create_linear_gradient(24.0, 24.0, 216.0, 120.0);
+        gradient.add_color_stop(0.0, Srgb::new(0.95, 0.55, 0.66));
+        gradient.add_color_stop(1.0, Srgb::new(0.35, 0.63, 0.94));
+        ctx.set_fill_style(gradient);
+        ctx.fill_rect(Rect::new(Point::new(24.0, 24.0), Size::new(192.0, 96.0)));
+
+        ctx.set_stroke_style(Srgb::new(1.0, 0.84, 0.32));
+        ctx.set_line_width(6.0);
+        ctx.stroke_circle(Point::new(300.0, 72.0), 40.0);
+
+        ctx.push_clip_rect(Rect::new(Point::new(24.0, 140.0), Size::new(150.0, 60.0)));
+        ctx.set_fill_style(Srgb::new(0.40, 0.85, 0.60));
+        ctx.fill_circle(Point::new(96.0, 170.0), 60.0);
+        ctx.pop_layer();
+
+        ctx.set_fill_style(Srgb::new(0.98, 0.98, 1.0));
+        ctx.set_font(FontSpec::new("", 28.0));
+        ctx.fill_text("Scene engines", Point::new(200.0, 170.0));
+    }
+
+    /// Renders a drawing with every command through the raster engine. The
+    /// PNG is for looking at; nothing about it is asserted pixel-wise.
+    #[test]
+    fn every_command_renders_offscreen() {
+        use waterui_graphics::OffscreenSize;
+
+        let directory = std::path::Path::new("/tmp/waterui_canvas_offscreen");
+        std::fs::create_dir_all(directory).expect("output directory must be creatable");
+        let renderer = OffscreenRenderer::cpu().expect("the raster engine needs no device");
+        let size = OffscreenSize::try_from_pixels(400, 220).expect("test size must be valid");
+        let mut content = CanvasContent {
+            draw_fn: Box::new(draw_every_command),
+            invalidator: None,
+            pending_redraw: Rc::new(Cell::new(false)),
+            active_guards: Vec::new(),
+            text_engine: TextEngine::default(),
+        };
+        let output = renderer
+            .render(&mut content, size, 1.0)
+            .expect("offscreen render should succeed");
+        output
+            .save_png(directory.join("every_command.png"))
+            .expect("png should be written");
+    }
+
+    #[test]
+    fn measure_text_uses_real_layout_metrics() {
+        record(|ctx| {
+            let metrics = ctx.measure_text("Hello, canvas");
+            assert!(metrics.width > 0.0, "expected positive text width");
+            assert!(metrics.height > 0.0, "expected positive text height");
+            assert_eq!(ctx.measure_text("").width, 0.0);
+            assert_eq!(ctx.measure_text("").height, 0.0);
+        });
+    }
+
+    #[test]
+    fn clip_layers_close_in_scope_order() {
+        let commands = record(|ctx| {
+            ctx.push_clip_rect(Rect::new(Point::zero(), Size::new(10.0, 10.0)));
+            ctx.fill_rect(Rect::new(Point::zero(), Size::new(4.0, 4.0)));
+            ctx.pop_layer();
+            ctx.fill_rect(Rect::new(Point::zero(), Size::new(2.0, 2.0)));
+        });
+        let fills = commands
+            .iter()
+            .filter(|command| matches!(command, Command::Fill { .. }))
+            .count();
+        assert_eq!(fills, 2, "both fills must survive the clip scope: {commands:?}");
+    }
+
+    #[test]
+    #[should_panic(expected = "pop_layer called with no open layer")]
+    fn unbalanced_pop_layer_panics() {
+        record(|ctx| ctx.pop_layer());
     }
 
     #[cfg(feature = "image")]
     #[test]
     fn draw_image_sub_maps_source_rect_onto_destination_rect() {
-        let mut scene = TestScene::new();
-        let mut text_engine = TextEngine::default();
-        let mut guards = Vec::new();
-
         // A non-origin source rect and a non-unit scale: the sprite at
         // (32, 16)..(64, 48) must land exactly on (100, 100)..(164, 164).
         let src = Rect::new(Point::new(32.0, 16.0), Size::new(32.0, 32.0));
         let dest = Rect::new(Point::new(100.0, 100.0), Size::new(64.0, 64.0));
+        let pixels = alloc::vec![0u8; 128 * 128 * 4];
+        let image =
+            CanvasImage::from_rgba_pixels(128, 128, &pixels).expect("test image must be constructible");
 
-        {
-            let mut ctx = DrawingContext {
-                scene: &mut scene,
-                width: 640.0,
-                height: 480.0,
-                state_stack: Vec::new(),
-                current_state: DrawingState::new(),
-                reactive: ReactiveFrameState {
-                    pending_redraw: Rc::new(Cell::new(false)),
-                    invalidator: None,
-                    guards: &mut guards,
-                },
-                text_engine: &mut text_engine,
-                requested_next_frame: false,
-            };
-            let pixels = alloc::vec![0u8; 128 * 128 * 4];
-            let image = CanvasImage::from_rgba_pixels(128, 128, &pixels)
-                .expect("test image must be constructible");
-            ctx.draw_image_sub(&image, src, dest);
-        }
+        let mut transform = None;
+        let mut text_engine = TextEngine::default();
+        let mut guards = Vec::new();
+        let renderer = OffscreenRenderer::cpu().expect("the raster engine needs no device");
+        let resources = renderer.resources();
+        let mut ctx = DrawingContext {
+            ops: OpTree::new(),
+            resources: &resources,
+            width: 640.0,
+            height: 480.0,
+            state_stack: Vec::new(),
+            current_state: DrawingState::new(),
+            reactive: ReactiveFrameState {
+                pending_redraw: Rc::new(Cell::new(false)),
+                invalidator: None,
+                guards: &mut guards,
+            },
+            text_engine: &mut text_engine,
+            requested_next_frame: false,
+        };
+        ctx.draw_image_sub(&image, src, dest);
+        ctx.ops.visit(&mut |op| {
+            if let Op::Image { transform: t, .. } = op {
+                transform = Some(*t);
+            }
+        });
 
-        let transform = *scene
-            .image_transforms
-            .first()
-            .expect("draw_image_sub must emit exactly one image draw");
+        let transform = transform.expect("draw_image_sub must emit exactly one image draw");
         let src_origin = transform * kurbo::Point::new(32.0, 16.0);
         let src_corner = transform * kurbo::Point::new(64.0, 48.0);
         assert!(
@@ -1508,32 +1460,20 @@ mod tests {
     }
 
     #[test]
-    fn stroke_text_appends_scene_commands() {
-        let mut scene = TestScene::new();
-        let mut text_engine = TextEngine::default();
-        let mut guards = Vec::new();
-
-        {
-            let mut ctx = DrawingContext {
-                scene: &mut scene,
-                width: 640.0,
-                height: 480.0,
-                state_stack: Vec::new(),
-                current_state: DrawingState::new(),
-                reactive: ReactiveFrameState {
-                    pending_redraw: Rc::new(Cell::new(false)),
-                    invalidator: None,
-                    guards: &mut guards,
-                },
-                text_engine: &mut text_engine,
-                requested_next_frame: false,
-            };
-            ctx.stroke_text("Stroke", Point::new(24.0, 32.0));
-        }
-
+    fn stroke_text_records_stroked_glyph_runs() {
+        let commands = record(|ctx| ctx.stroke_text("Stroke", Point::new(24.0, 32.0)));
         assert!(
-            scene.stroked_glyph_run,
-            "expected stroke_text to draw a stroked glyph run"
+            commands.iter().any(|command| matches!(
+                command,
+                Command::Glyphs {
+                    run: cherenkov::GlyphRun {
+                        style: cherenkov::GlyphStyle::Stroke(_),
+                        ..
+                    },
+                    ..
+                }
+            )),
+            "expected stroke_text to draw a stroked glyph run: {commands:?}"
         );
     }
 }
