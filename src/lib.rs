@@ -97,7 +97,7 @@ use nami::SignalExt;
 use nami::signal::IntoSignal;
 use waterui_core::IntoSignalF32;
 use waterui_core::layout::{Affine2, Point, Rect, Size, StretchAxis};
-use waterui_graphics::{Color, SceneResources, WorkingColor};
+use waterui_graphics::{Color, RecordingResources, WorkingColor};
 
 fn affine2_to_kurbo(t: Affine2) -> kurbo::Affine {
     kurbo::Affine::new([
@@ -1353,7 +1353,7 @@ impl SceneContent for CanvasContent {
     fn build_scene(
         &mut self,
         recorder: &mut Recorder,
-        resources: &SceneResources,
+        resources: &mut RecordingResources<'_>,
         width: f32,
         height: f32,
     ) -> bool {

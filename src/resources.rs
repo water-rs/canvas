@@ -20,7 +20,7 @@ use cherenkov::{Font, FontId, FontSource};
 #[cfg(feature = "image")]
 use cherenkov::{Image, ImageId, Rgba8};
 use parley::FontData;
-use waterui_graphics::{Registered, SceneResources};
+use waterui_graphics::{RecordingResources, Registered};
 
 #[cfg(feature = "image")]
 use crate::image::CanvasImage;
@@ -64,19 +64,19 @@ impl Resources {
     ///
     /// A source the engine rejects is marked failed so it is skipped rather
     /// than re-registered on every commit.
-    pub fn font(&mut self, font: &FontData, table: &SceneResources) -> Option<FontId> {
+    pub fn font(&mut self, font: &FontData, names: &mut RecordingResources<'_>) -> Option<FontId> {
         let key = font_key(font);
         if let Some(handle) = self.fonts.get(&key) {
             self.used_fonts.insert(key);
-            return Some(handle.id());
+            return Some(names.name(handle));
         }
         if self.failed_fonts.contains(&key) {
             return None;
         }
         let source = FontSource::bytes(Arc::<[u8]>::from(font.data.data())).with_index(font.index);
-        match table.font(source) {
+        match names.font(source) {
             Ok(handle) => {
-                let id = handle.id();
+                let id = names.name(&handle);
                 self.fonts.insert(key, handle);
                 self.used_fonts.insert(key);
                 Some(id)
@@ -91,20 +91,24 @@ impl Resources {
 
     /// The `ImageId` for `image`, registering it with `table` on first use.
     #[cfg(feature = "image")]
-    pub fn image(&mut self, image: &CanvasImage, table: &SceneResources) -> Option<ImageId> {
+    pub fn image(
+        &mut self,
+        image: &CanvasImage,
+        names: &mut RecordingResources<'_>,
+    ) -> Option<ImageId> {
         let key = image_key(image);
         if let Some(handle) = self.images.get(&key) {
             self.used_images.insert(key);
-            return Some(handle.id());
+            return Some(names.name(handle));
         }
         if self.failed_images.contains(&key) {
             return None;
         }
         let data =
             cherenkov::ImageData::<Rgba8>::new(image.width, image.height, image.pixels.clone());
-        match data.and_then(|data| table.image(data)) {
+        match data.and_then(|data| names.image(data)) {
             Ok(handle) => {
-                let id = handle.id();
+                let id = names.name(&handle);
                 self.images.insert(key, handle);
                 self.used_images.insert(key);
                 Some(id)

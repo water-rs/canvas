@@ -3,7 +3,7 @@
 //! A [`DrawingContext`](crate::DrawingContext) records into an [`OpTree`] while
 //! the user's draw closure runs. `CanvasContent` then replays the tree into the
 //! engine's `cherenkov::Recorder` on every commit, registering fonts and
-//! images with the frame's `SceneResources` table as each is first drawn.
+//! images with the recording's `RecordingResources` as each is first drawn.
 
 use alloc::{sync::Arc, vec::Vec};
 
@@ -12,7 +12,7 @@ use cherenkov::Sampling;
 use cherenkov::kurbo::{Affine, BezPath, Stroke};
 use cherenkov::{Draw, EvenOdd, Glyph, GlyphRun, GlyphStyle, Group, Live, Paint, Recorder};
 use parley::FontData;
-use waterui_graphics::SceneResources;
+use waterui_graphics::RecordingResources;
 
 use crate::FillRule;
 #[cfg(feature = "image")]
@@ -198,16 +198,16 @@ impl OpTree {
 }
 
 /// Replays `ops` into `recorder`, resolving fonts and images through `state`
-/// and registering sources the engine has not seen yet with `table` — the
+/// and registering sources the engine has not seen yet with `names` — the
 /// op that first draws a resource records its id in the same frame.
 pub fn replay(
     ops: Vec<Op>,
     recorder: &mut Recorder,
     state: &mut crate::resources::Resources,
-    table: &SceneResources,
+    names: &mut RecordingResources<'_>,
 ) {
     for op in ops {
-        replay_op(op, recorder, state, table);
+        replay_op(op, recorder, state, names);
     }
 }
 
@@ -229,7 +229,7 @@ fn replay_op(
     op: Op,
     recorder: &mut Recorder,
     state: &mut crate::resources::Resources,
-    table: &SceneResources,
+    names: &mut RecordingResources<'_>,
 ) {
     match op {
         Op::Fill {
@@ -261,7 +261,7 @@ fn replay_op(
             alpha,
         } => {
             replay_glyphs(
-                recorder, transform, &font, size, coords, glyphs, style, paint, alpha, state, table,
+                recorder, transform, &font, size, coords, glyphs, style, paint, alpha, state, names,
             );
         }
         #[cfg(feature = "image")]
@@ -271,7 +271,7 @@ fn replay_op(
             dst,
             sampling,
         } => {
-            if let Some(id) = state.image(&image, table) {
+            if let Some(id) = state.image(&image, names) {
                 draw_shaped(recorder, transform, |r| {
                     r.image(id, dst, sampling);
                 });
@@ -286,7 +286,7 @@ fn replay_op(
             let path = transform * path;
             clip_with(recorder, path, rule, |r| {
                 for op in body {
-                    replay_op(op, r, state, table);
+                    replay_op(op, r, state, names);
                 }
             });
         }
@@ -301,7 +301,7 @@ fn replay_op(
             clip_with(recorder, path, rule, |r| {
                 r.group(group, |r| {
                     for op in body {
-                        replay_op(op, r, state, table);
+                        replay_op(op, r, state, names);
                     }
                 });
             });
@@ -326,9 +326,9 @@ fn replay_glyphs(
     paint: Live<Paint>,
     alpha: f32,
     state: &mut crate::resources::Resources,
-    table: &SceneResources,
+    names: &mut RecordingResources<'_>,
 ) {
-    let Some(font_id) = state.font(font, table) else {
+    let Some(font_id) = state.font(font, names) else {
         return;
     };
     draw_shaped(recorder, transform, |r| {
