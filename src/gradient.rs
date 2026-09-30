@@ -1,15 +1,88 @@
 //! Gradient builders for Canvas.
 //!
-//! This module provides HTML5 Canvas-style gradient builders that use
-//! WaterUI's native `ResolvedColor` type.
+//! This module provides HTML5 Canvas-style gradient builders whose colour
+//! stops are `waterui_graphics::Color` values resolved against the view's
+//! environment at draw time.
 
+use std::rc::Rc;
+
+use cherenkov::{Paint, WorkingColor};
+use nami::watcher::{Context, WatcherGuard};
+use nami::{Computed, Signal};
 use waterui_core::layout::Point;
-use waterui_graphics::color::ResolvedColor;
+use waterui_graphics::Color;
 
-// Internal imports for rendering
-use peniko;
+use crate::{DrawingContext, StylePaint};
 
-use super::conversions::{point_to_kurbo, resolved_color_to_peniko};
+/// A paint signal that rebuilds a gradient when any stop's colour changes.
+///
+/// The recorder's paint operand takes the whole `Paint` as one live value —
+/// cherenkov names no per-stop operand — so a gradient whose stops are signals
+/// rides as a `Signal<Output = Paint>` and a stop change lands as an operand
+/// update, not a scene re-record.
+#[derive(Clone)]
+struct LiveStops<F> {
+    stops: Vec<(f32, Computed<WorkingColor>)>,
+    build: F,
+}
+
+impl<F> Signal for LiveStops<F>
+where
+    F: Fn(Vec<(f32, WorkingColor)>) -> Paint + Clone + 'static,
+{
+    type Output = Paint;
+    type Guard = StopsGuard;
+
+    fn snapshot(&self) -> Paint {
+        let colors = self
+            .stops
+            .iter()
+            .map(|(offset, color)| (*offset, color.snapshot()))
+            .collect::<Vec<_>>();
+        (self.build)(colors)
+    }
+
+    fn watch(&self, watcher: impl Fn(Context<Paint>) + 'static) -> StopsGuard {
+        let watcher = Rc::new(watcher);
+        let guards = self
+            .stops
+            .iter()
+            .map(|(_, color)| {
+                let signal = self.clone();
+                let watcher = Rc::clone(&watcher);
+                color.watch(move |_| watcher(Context::from(signal.snapshot())))
+            })
+            .collect();
+        StopsGuard(guards)
+    }
+}
+
+/// Keeps every stop subscription alive until the operand drops it.
+struct StopsGuard(
+    #[expect(dead_code, reason = "dropping the guard releases the subscriptions")]
+    Vec<nami::watcher::BoxWatcherGuard>,
+);
+impl WatcherGuard for StopsGuard {}
+
+/// Resolves every stop's colour to its signal and returns a paint signal that
+/// rebuilds the gradient whenever one of them changes.
+fn live_stops<G>(
+    ctx: &mut DrawingContext,
+    stops: &[ColorStop],
+    build: impl Fn(Vec<(f32, WorkingColor)>) -> G + Clone + 'static,
+) -> Computed<Paint>
+where
+    G: Into<Paint> + 'static,
+{
+    let stops = stops
+        .iter()
+        .map(|stop| (stop.offset, ctx.resolve_color_signal(&stop.color)))
+        .collect();
+    Computed::new(LiveStops {
+        stops,
+        build: move |colors| build(colors).into(),
+    })
+}
 
 /// A color stop in a gradient.
 ///
@@ -19,13 +92,13 @@ pub struct ColorStop {
     /// Position along the gradient (0.0 to 1.0).
     pub offset: f32,
     /// Color at this position.
-    pub color: ResolvedColor,
+    pub color: Color,
 }
 
 impl ColorStop {
     /// Creates a new color stop.
     #[must_use]
-    pub fn new(offset: f32, color: impl Into<ResolvedColor>) -> Self {
+    pub fn new(offset: f32, color: impl Into<Color>) -> Self {
         Self {
             offset,
             color: color.into(),
@@ -73,32 +146,21 @@ impl LinearGradient {
     /// # Arguments
     /// * `offset` - Position (0.0 to 1.0) along the gradient
     /// * `color` - Color at this position
-    pub fn add_color_stop(&mut self, offset: f32, color: impl Into<ResolvedColor>) {
+    pub fn add_color_stop(&mut self, offset: f32, color: impl Into<Color>) {
         self.stops.push(ColorStop::new(offset, color));
     }
 
-    /// Builds the gradient into a peniko Brush for rendering.
-    #[must_use]
-    pub(crate) fn build(&self) -> peniko::Brush {
-        // Convert color stops to peniko format
-        let peniko_stops: Vec<peniko::ColorStop> = self
-            .stops
-            .iter()
-            .map(|stop| {
-                let peniko_color = resolved_color_to_peniko(stop.color);
-                peniko::ColorStop {
-                    offset: stop.offset,
-                    color: peniko_color.into(),
-                }
-            })
-            .collect();
-
-        // Create linear gradient
-        let gradient =
-            peniko::Gradient::new_linear(point_to_kurbo(self.start), point_to_kurbo(self.end))
-                .with_stops(&*peniko_stops);
-
-        peniko::Brush::Gradient(gradient)
+    /// Resolves the gradient stops into a live engine paint.
+    pub(crate) fn build(&self, ctx: &mut DrawingContext) -> StylePaint {
+        let start = super::conversions::point_to_kurbo(self.start);
+        let end = super::conversions::point_to_kurbo(self.end);
+        StylePaint::Signal(live_stops(ctx, &self.stops, move |colors| {
+            let mut gradient = cherenkov::LinearGradient::new(start, end);
+            for (offset, color) in colors {
+                gradient = gradient.stop(offset, color);
+            }
+            gradient
+        }))
     }
 }
 
@@ -147,36 +209,24 @@ impl RadialGradient {
     }
 
     /// Adds a color stop to the gradient.
-    pub fn add_color_stop(&mut self, offset: f32, color: impl Into<ResolvedColor>) {
+    pub fn add_color_stop(&mut self, offset: f32, color: impl Into<Color>) {
         self.stops.push(ColorStop::new(offset, color));
     }
 
-    /// Builds the gradient into a peniko Brush for rendering.
-    #[must_use]
-    pub(crate) fn build(&self) -> peniko::Brush {
-        // Convert color stops
-        let peniko_stops: Vec<peniko::ColorStop> = self
-            .stops
-            .iter()
-            .map(|stop| {
-                let peniko_color = resolved_color_to_peniko(stop.color);
-                peniko::ColorStop {
-                    offset: stop.offset,
-                    color: peniko_color.into(),
-                }
-            })
-            .collect();
-
-        // Create radial gradient
-        let gradient = peniko::Gradient::new_two_point_radial(
-            point_to_kurbo(self.center0),
-            self.radius0,
-            point_to_kurbo(self.center1),
-            self.radius1,
-        )
-        .with_stops(&*peniko_stops);
-
-        peniko::Brush::Gradient(gradient)
+    /// Resolves the gradient stops into a live engine paint.
+    pub(crate) fn build(&self, ctx: &mut DrawingContext) -> StylePaint {
+        let center0 = super::conversions::point_to_kurbo(self.center0);
+        let radius0 = f64::from(self.radius0);
+        let center1 = super::conversions::point_to_kurbo(self.center1);
+        let radius1 = f64::from(self.radius1);
+        StylePaint::Signal(live_stops(ctx, &self.stops, move |colors| {
+            let mut gradient =
+                cherenkov::RadialGradient::two_point(center0, radius0, center1, radius1);
+            for (offset, color) in colors {
+                gradient = gradient.stop(offset, color);
+            }
+            gradient
+        }))
     }
 }
 
@@ -220,31 +270,25 @@ impl ConicGradient {
     }
 
     /// Adds a color stop to the gradient.
-    pub fn add_color_stop(&mut self, offset: f32, color: impl Into<ResolvedColor>) {
+    pub fn add_color_stop(&mut self, offset: f32, color: impl Into<Color>) {
         self.stops.push(ColorStop::new(offset, color));
     }
 
-    /// Builds the gradient into a peniko Brush for rendering.
-    #[must_use]
-    pub(crate) fn build(&self) -> peniko::Brush {
-        // Convert color stops
-        let peniko_stops: Vec<peniko::ColorStop> = self
-            .stops
-            .iter()
-            .map(|stop| {
-                let peniko_color = resolved_color_to_peniko(stop.color);
-                peniko::ColorStop {
-                    offset: stop.offset,
-                    color: peniko_color.into(),
-                }
-            })
-            .collect();
-
-        // Create sweep gradient
-        let gradient =
-            peniko::Gradient::new_sweep(point_to_kurbo(self.center), self.start_angle, 0.0)
-                .with_stops(&*peniko_stops);
-
-        peniko::Brush::Gradient(gradient)
+    /// Resolves the gradient stops into a live engine paint.
+    pub(crate) fn build(&self, ctx: &mut DrawingContext) -> StylePaint {
+        let center = super::conversions::point_to_kurbo(self.center);
+        let start_angle = f64::from(self.start_angle);
+        StylePaint::Signal(live_stops(ctx, &self.stops, move |colors| {
+            // Conic stops sweep a full turn from `start_angle`.
+            let mut gradient = cherenkov::SweepGradient::new(
+                center,
+                start_angle,
+                start_angle + core::f64::consts::TAU,
+            );
+            for (offset, color) in colors {
+                gradient = gradient.stop(offset, color);
+            }
+            gradient
+        }))
     }
 }

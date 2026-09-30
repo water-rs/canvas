@@ -1,10 +1,9 @@
-//! Type conversions between WaterUI and vello (kurbo/peniko) types.
+//! Type conversions between WaterUI layout types and `kurbo` geometry.
 //!
 //! These conversions are internal to the canvas module and allow the Canvas API
-//! to use WaterUI's native types while rendering with vello's kurbo/peniko types.
+//! to use WaterUI's native types while drawing with `kurbo` geometry.
 
 use waterui_core::layout::{Point, Rect, Size};
-use waterui_graphics::color::ResolvedColor;
 
 // ============================================================================
 // Point conversions
@@ -48,16 +47,4 @@ pub const fn kurbo_to_rect(r: kurbo::Rect) -> Rect {
         r.height() as f32,
     );
     Rect::new(Point::new(x, y), Size::new(width, height))
-}
-
-// ============================================================================
-// Color conversions
-// ============================================================================
-
-#[inline]
-pub fn resolved_color_to_peniko(c: ResolvedColor) -> peniko::Color {
-    // Convert linear RGB (with headroom) into sRGB for peniko.
-    let srgb = c.to_srgb_with_headroom();
-    let opacity = c.opacity.clamp(0.0, 1.0);
-    peniko::Color::new([srgb.red, srgb.green, srgb.blue, opacity])
 }
