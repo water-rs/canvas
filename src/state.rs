@@ -2,11 +2,12 @@
 //!
 //! This module provides the state stack for HTML5 Canvas-style save/restore operations.
 
-use waterui_graphics::color::{ResolvedColor, Srgb};
+use waterui_graphics::Color;
+use waterui_graphics::color::Srgb;
 
 // Internal imports for rendering (not exposed to users)
+use cherenkov;
 use kurbo;
-use peniko;
 
 use super::gradient::{ConicGradient, LinearGradient, RadialGradient};
 use super::text::FontSpec;
@@ -25,20 +26,11 @@ pub enum FillRule {
     EvenOdd,
 }
 
-impl FillRule {
-    pub(crate) const fn to_peniko(self) -> peniko::Fill {
-        match self {
-            Self::NonZero => peniko::Fill::NonZero,
-            Self::EvenOdd => peniko::Fill::EvenOdd,
-        }
-    }
-}
-
 /// Fill style for shapes - can be a solid color or gradient.
 #[derive(Debug, Clone)]
 pub enum FillStyle {
     /// Solid color fill.
-    Color(ResolvedColor),
+    Color(Color),
     /// Linear gradient fill.
     LinearGradient(LinearGradient),
     /// Radial gradient fill.
@@ -49,7 +41,7 @@ pub enum FillStyle {
 
 impl<T> From<T> for FillStyle
 where
-    T: Into<ResolvedColor>,
+    T: Into<Color>,
 {
     fn from(color: T) -> Self {
         Self::Color(color.into())
@@ -78,7 +70,7 @@ impl From<ConicGradient> for FillStyle {
 #[derive(Debug, Clone)]
 pub enum StrokeStyle {
     /// Solid color stroke.
-    Color(ResolvedColor),
+    Color(Color),
     /// Linear gradient stroke.
     LinearGradient(LinearGradient),
     /// Radial gradient stroke.
@@ -89,7 +81,7 @@ pub enum StrokeStyle {
 
 impl<T> From<T> for StrokeStyle
 where
-    T: Into<ResolvedColor>,
+    T: Into<Color>,
 {
     fn from(color: T) -> Self {
         Self::Color(color.into())
@@ -193,21 +185,21 @@ pub(crate) struct DrawingState {
 
     // Global compositing
     pub(crate) global_alpha: f32,
-    pub(crate) blend_mode: peniko::BlendMode,
+    pub(crate) blend_mode: cherenkov::BlendMode,
 
     // Text styling (Phase 5)
     pub(crate) font: FontSpec,
 
-    // Fill rule (Phase 7)
-    pub(crate) fill_rule: peniko::Fill,
+    // Fill rule
+    pub(crate) fill_rule: FillRule,
 }
 
 impl Default for DrawingState {
     fn default() -> Self {
         Self {
             transform: kurbo::Affine::IDENTITY,
-            fill_style: FillStyle::Color(ResolvedColor::from_srgb(Srgb::BLACK)),
-            stroke_style: StrokeStyle::Color(ResolvedColor::from_srgb(Srgb::BLACK)),
+            fill_style: FillStyle::Color(Color::from(Srgb::BLACK)),
+            stroke_style: StrokeStyle::Color(Color::from(Srgb::BLACK)),
             line_width: 1.0,
             line_cap: LineCap::default(),
             line_join: LineJoin::default(),
@@ -215,9 +207,9 @@ impl Default for DrawingState {
             line_dash: Vec::new(),
             line_dash_offset: 0.0,
             global_alpha: 1.0,
-            blend_mode: peniko::BlendMode::default(),
+            blend_mode: cherenkov::BlendMode::default(),
             font: FontSpec::default(),
-            fill_rule: peniko::Fill::NonZero, // Default fill rule
+            fill_rule: FillRule::NonZero,
         }
     }
 }
