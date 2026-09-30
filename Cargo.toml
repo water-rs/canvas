@@ -80,13 +80,13 @@ nami-core = { git = "https://github.com/water-rs/nami", rev = "f1db5017f5d64cb45
 
 # The Cherenkov engine this crate records into — pinned to the cutover rev;
 # this overrides waterui's own pin (23d94a8a) in the shared graph.
-cherenkov = { git = "https://github.com/water-rs/cherenkov", rev = "7d553f19" }
-cherenkov-cpu = { git = "https://github.com/water-rs/cherenkov", rev = "7d553f19" }
-cherenkov-gpu = { git = "https://github.com/water-rs/cherenkov", rev = "7d553f19" }
-cherenkov-shader = { git = "https://github.com/water-rs/cherenkov", rev = "7d553f19" }
-filtrate = { git = "https://github.com/water-rs/cherenkov", rev = "7d553f19" }
-filtrate-core = { git = "https://github.com/water-rs/cherenkov", rev = "7d553f19" }
-filtrate-derive = { git = "https://github.com/water-rs/cherenkov", rev = "7d553f19" }
+cherenkov = { git = "https://github.com/water-rs/cherenkov", rev = "71fe47e2" }
+cherenkov-cpu = { git = "https://github.com/water-rs/cherenkov", rev = "71fe47e2" }
+cherenkov-gpu = { git = "https://github.com/water-rs/cherenkov", rev = "71fe47e2" }
+cherenkov-shader = { git = "https://github.com/water-rs/cherenkov", rev = "71fe47e2" }
+filtrate = { git = "https://github.com/water-rs/cherenkov", rev = "71fe47e2" }
+filtrate-core = { git = "https://github.com/water-rs/cherenkov", rev = "71fe47e2" }
+filtrate-derive = { git = "https://github.com/water-rs/cherenkov", rev = "71fe47e2" }
 
 # The WaterUI crates this graph resolves, pinned to the cherenkov-cutover
 # revision (branch feat/cherenkov-cutover-w).
