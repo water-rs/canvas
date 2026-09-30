@@ -52,7 +52,7 @@ waterui-graphics = { version = "0.5.0", default-features = false }
 nami = "=0.11.1"
 # The rendering engine's front end: shapes, paints and the recorder the
 # canvas replays into. Not on crates.io; the same rev as waterui pins.
-cherenkov = { git = "https://github.com/water-rs/cherenkov", rev = "bc688ad177f2bba9c3405aa6d7dc1d5b0d8031b9" }
+cherenkov = { git = "https://github.com/water-rs/cherenkov", rev = "f59766d0a165e35e2bb1965c4919e45b6895e357" }
 parley = { version = "0.11", default-features = false, features = ["system"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tiff"], optional = true }
 
