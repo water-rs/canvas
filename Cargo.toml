@@ -143,12 +143,12 @@ nami-core = { git = "https://github.com/water-rs/nami", rev = "f1db5017f5d64cb45
 # and the engine agree on — every filtrate in the graph must come from this
 # same revision or a filter built on one side is a different type on the
 # other.
-cherenkov = { git = "https://github.com/water-rs/cherenkov", rev = "fd1e36660719bcf2ffecda4649c6243812f536ad" }
-cherenkov-cpu = { git = "https://github.com/water-rs/cherenkov", rev = "fd1e36660719bcf2ffecda4649c6243812f536ad" }
-cherenkov-gpu = { git = "https://github.com/water-rs/cherenkov", rev = "fd1e36660719bcf2ffecda4649c6243812f536ad" }
-filtrate = { git = "https://github.com/water-rs/cherenkov", rev = "fd1e36660719bcf2ffecda4649c6243812f536ad" }
-filtrate-core = { git = "https://github.com/water-rs/cherenkov", rev = "fd1e36660719bcf2ffecda4649c6243812f536ad" }
-filtrate-derive = { git = "https://github.com/water-rs/cherenkov", rev = "fd1e36660719bcf2ffecda4649c6243812f536ad" }
+cherenkov = { git = "https://github.com/water-rs/cherenkov", rev = "522365616cff08d5d2e39bdae4690610593895e6" }
+cherenkov-cpu = { git = "https://github.com/water-rs/cherenkov", rev = "522365616cff08d5d2e39bdae4690610593895e6" }
+cherenkov-gpu = { git = "https://github.com/water-rs/cherenkov", rev = "522365616cff08d5d2e39bdae4690610593895e6" }
+filtrate = { git = "https://github.com/water-rs/cherenkov", rev = "522365616cff08d5d2e39bdae4690610593895e6" }
+filtrate-core = { git = "https://github.com/water-rs/cherenkov", rev = "522365616cff08d5d2e39bdae4690610593895e6" }
+filtrate-derive = { git = "https://github.com/water-rs/cherenkov", rev = "522365616cff08d5d2e39bdae4690610593895e6" }
 
 # Every waterkit crate the codec graph shares types across rides the same rev
 # — a registry `waterkit-core` beside the pinned `waterkit-codec` gives two
@@ -174,3 +174,21 @@ waterkit-video-streaming = { git = "https://github.com/water-rs/waterkit", rev =
 # codec@4863ba5 asks for shaderloom's `runtime` feature, added after the
 # 0.1.2 registry release — pin the same rev as the framework's lock.
 shaderloom = { git = "https://github.com/water-rs/shaderloom", rev = "84c37c8314f1bb6d228fce30f78d94872247a18f" }
+
+# Mirrored from water-rs/cherenkov's workspace [patch.crates-io] (cherenkov#229).
+# wgpu 30.0.1's Metal backend reads the address of the kCGColorSpace* globals
+# instead of their value and crashes in CGColorSpaceCreateWithName whenever a
+# surface negotiates Extended Display P3 or BT.2100 (gfx-rs/wgpu#10175, fixed on
+# trunk, not yet released for v30). The fork carries only that backport on the
+# v30.0.1 tag; drop these entries once wgpu-hal 30.0.2 ships it.
+naga = { git = "https://github.com/water-rs/wgpu", rev = "4b35d8bc968f6968b3cbae65b6e2e2ee132aa038" }
+naga-types = { git = "https://github.com/water-rs/wgpu", rev = "4b35d8bc968f6968b3cbae65b6e2e2ee132aa038" }
+wgpu = { git = "https://github.com/water-rs/wgpu", rev = "4b35d8bc968f6968b3cbae65b6e2e2ee132aa038" }
+wgpu-core = { git = "https://github.com/water-rs/wgpu", rev = "4b35d8bc968f6968b3cbae65b6e2e2ee132aa038" }
+wgpu-core-deps-apple = { git = "https://github.com/water-rs/wgpu", rev = "4b35d8bc968f6968b3cbae65b6e2e2ee132aa038" }
+wgpu-core-deps-emscripten = { git = "https://github.com/water-rs/wgpu", rev = "4b35d8bc968f6968b3cbae65b6e2e2ee132aa038" }
+wgpu-core-deps-wasm = { git = "https://github.com/water-rs/wgpu", rev = "4b35d8bc968f6968b3cbae65b6e2e2ee132aa038" }
+wgpu-core-deps-windows-linux-android = { git = "https://github.com/water-rs/wgpu", rev = "4b35d8bc968f6968b3cbae65b6e2e2ee132aa038" }
+wgpu-hal = { git = "https://github.com/water-rs/wgpu", rev = "4b35d8bc968f6968b3cbae65b6e2e2ee132aa038" }
+wgpu-naga-bridge = { git = "https://github.com/water-rs/wgpu", rev = "4b35d8bc968f6968b3cbae65b6e2e2ee132aa038" }
+wgpu-types = { git = "https://github.com/water-rs/wgpu", rev = "4b35d8bc968f6968b3cbae65b6e2e2ee132aa038" }
