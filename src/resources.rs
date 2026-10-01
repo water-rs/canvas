@@ -2,12 +2,12 @@
 //!
 //! Fonts and images become drawable once the engine registers them; the
 //! recorder then names them by id. `build_scene` hands every frame the
-//! host's `SceneResources` table, so a source the drawing first reaches is
+//! host's `RecordingResources`, so a source the drawing first reaches is
 //! registered in the very frame that draws it — a font or image the closure
 //! reaches for on its tenth commit is recorded with a live id, never queued
 //! for a mount-time hook that has already run.
 //!
-//! Each lookup keeps the `Registered` handle the table returns, keyed by its
+//! Each lookup keeps the `Registered` handle the registry returns, keyed by its
 //! source. A recording names the registration behind the handle, so handles
 //! are held exactly as long as the current frame draws them: a source a
 //! later frame does not use is released on `end_frame`, while the content is
@@ -60,7 +60,7 @@ pub struct Resources {
 }
 
 impl Resources {
-    /// The `FontId` for `font`, registering it with `table` on first use.
+    /// The `FontId` for `font`, registering it with `names` on first use.
     ///
     /// A source the engine rejects is marked failed so it is skipped rather
     /// than re-registered on every commit.
@@ -89,7 +89,7 @@ impl Resources {
         }
     }
 
-    /// The `ImageId` for `image`, registering it with `table` on first use.
+    /// The `ImageId` for `image`, registering it with `names` on first use.
     #[cfg(feature = "image")]
     pub fn image(
         &mut self,
