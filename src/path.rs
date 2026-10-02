@@ -19,7 +19,7 @@ use super::conversions::{kurbo_to_rect, point_to_kurbo, rect_to_kurbo};
 /// # Example
 ///
 /// ```rust
-/// # use waterui::prelude::*;
+/// # use waterui_core::layout::{Point, Rect, Size};
 /// # use waterui_canvas::{DrawingContext, Path};
 /// # fn draw(ctx: &mut DrawingContext<'_>) {
 /// let mut path = Path::new();
