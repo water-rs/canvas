@@ -1363,6 +1363,13 @@ impl SceneContent for CanvasContent {
         requested_next_frame || self.pending_redraw.replace(false)
     }
 
+    fn rebuild_for_engine(&mut self) {
+        // The registration handles name resources on the engine that
+        // created them; the next `build_scene` re-registers every source
+        // the drawing still uses on the replacement engine.
+        self.resources = Resources::default();
+    }
+
     fn set_invalidator(&mut self, invalidator: Option<SceneInvalidator>) {
         self.invalidator = invalidator;
     }
