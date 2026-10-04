@@ -6,8 +6,8 @@ use waterui_graphics::Color;
 use waterui_graphics::color::Srgb;
 
 // Internal imports for rendering (not exposed to users)
-use cherenkov;
 use kurbo;
+use waterui_graphics::draw::BlendMode;
 
 use super::gradient::{ConicGradient, LinearGradient, RadialGradient};
 use super::text::FontSpec;
@@ -185,7 +185,7 @@ pub(crate) struct DrawingState {
 
     // Global compositing
     pub(crate) global_alpha: f32,
-    pub(crate) blend_mode: cherenkov::BlendMode,
+    pub(crate) blend_mode: BlendMode,
 
     // Text styling (Phase 5)
     pub(crate) font: FontSpec,
@@ -207,7 +207,7 @@ impl Default for DrawingState {
             line_dash: Vec::new(),
             line_dash_offset: 0.0,
             global_alpha: 1.0,
-            blend_mode: cherenkov::BlendMode::default(),
+            blend_mode: BlendMode::default(),
             font: FontSpec::default(),
             fill_rule: FillRule::NonZero,
         }

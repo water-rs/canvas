@@ -2,17 +2,21 @@
 //!
 //! A [`DrawingContext`](crate::DrawingContext) records into an [`OpTree`] while
 //! the user's draw closure runs. `CanvasContent` then replays the tree into the
-//! engine's `cherenkov::Recorder` on every commit, registering fonts and
+//! host's `draw::Recorder` on every commit, registering fonts and
 //! images with the recording's `RecordingResources` as each is first drawn.
 
 use alloc::{sync::Arc, vec::Vec};
 
-#[cfg(feature = "image")]
-use cherenkov::Sampling;
-use cherenkov::kurbo::{Affine, BezPath, Stroke};
-use cherenkov::{Draw, EvenOdd, Glyph, GlyphRun, GlyphStyle, Group, Live, Paint, Recorder};
 use parley::FontData;
 use waterui_graphics::RecordingResources;
+#[cfg(feature = "image")]
+use waterui_graphics::draw::Sampling;
+#[cfg(feature = "image")]
+use waterui_graphics::draw::kurbo::Rect;
+use waterui_graphics::draw::kurbo::{Affine, BezPath, Stroke};
+use waterui_graphics::draw::{
+    Draw, EvenOdd, Glyph, GlyphRun, GlyphStyle, Group, Live, Paint, Recorder,
+};
 
 use crate::FillRule;
 #[cfg(feature = "image")]
@@ -70,7 +74,7 @@ pub enum Op {
         /// The source image; resolves to an `ImageId` at replay.
         image: CanvasImage,
         /// Destination rectangle in local space.
-        dst: cherenkov::kurbo::Rect,
+        dst: Rect,
         /// Sampling mode.
         sampling: Sampling,
     },
@@ -198,7 +202,7 @@ impl OpTree {
 }
 
 /// Replays `ops` into `recorder`, resolving fonts and images through `state`
-/// and registering sources the engine has not seen yet with `names` — the
+/// and registering sources the target has not seen yet with `names` — the
 /// op that first draws a resource records its id in the same frame.
 pub fn replay(
     ops: Vec<Op>,

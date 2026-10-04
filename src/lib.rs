@@ -62,10 +62,10 @@ pub mod gradient;
 #[cfg(feature = "image")]
 pub mod image;
 
-/// Collected drawing operations and their replay into a `cherenkov::Recorder`.
+/// Collected drawing operations and their replay into a `draw::Recorder`.
 mod ops;
 
-/// Engine resource handles kept with a mounted canvas.
+/// Registered resource handles kept with a mounted canvas.
 mod resources;
 
 /// Text rendering support for Canvas.
@@ -112,9 +112,9 @@ fn affine2_to_kurbo(t: Affine2) -> kurbo::Affine {
 
 // Internal imports for rendering (not exposed to users)
 #[cfg(feature = "image")]
-use cherenkov::Sampling;
-use cherenkov::kurbo::Shape as _;
-use cherenkov::{Fixed, GlyphStyle, Group, Live, Paint, Recorder};
+use waterui_graphics::draw::Sampling;
+use waterui_graphics::draw::kurbo::Shape as _;
+use waterui_graphics::draw::{Fixed, Glyph, GlyphStyle, Group, Live, Paint, Recorder};
 
 use crate::conversions::{point_to_kurbo, rect_to_kurbo};
 use crate::ops::{Op, OpTree};
@@ -1238,7 +1238,7 @@ impl DrawingContext<'_> {
                     let run_y = glyph_run.baseline();
                     glyphs.clear();
                     glyphs.extend(glyph_run.glyphs().map(|glyph| {
-                        let positioned = cherenkov::Glyph {
+                        let positioned = Glyph {
                             id: glyph.id,
                             x: run_x + glyph.x,
                             y: run_y - glyph.y,

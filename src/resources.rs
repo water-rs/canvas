@@ -1,11 +1,11 @@
-//! Engine resource handles owned by a mounted canvas.
+//! Registered resource handles owned by a mounted canvas.
 //!
-//! Fonts and images become drawable once the engine registers them; the
-//! recorder then names them by id. `build_scene` hands every frame the
-//! host's `RecordingResources`, so a source the drawing first reaches is
-//! registered in the very frame that draws it — a font or image the closure
-//! reaches for on its tenth commit is recorded with a live id, never queued
-//! for a mount-time hook that has already run.
+//! Fonts and images become drawable once the target's registry accepts
+//! them; the recorder then names them by id. `build_scene` hands every
+//! frame the host's `RecordingResources`, so a source the drawing first
+//! reaches is registered in the very frame that draws it — a font or image
+//! the closure reaches for on its tenth commit is recorded with a live id,
+//! never queued for a mount-time hook that has already run.
 //!
 //! Each lookup keeps the `Registered` handle the registry returns, keyed by its
 //! source. A recording names the registration behind the handle, so handles
@@ -16,11 +16,13 @@
 use alloc::sync::Arc;
 use std::collections::{HashMap, HashSet};
 
-use cherenkov::{Font, FontId, FontSource};
-#[cfg(feature = "image")]
-use cherenkov::{Image, ImageId, Rgba8};
 use parley::FontData;
-use waterui_graphics::{RecordingResources, Registered};
+#[cfg(feature = "image")]
+use waterui_graphics::Rgba8;
+use waterui_graphics::draw::FontId;
+#[cfg(feature = "image")]
+use waterui_graphics::draw::ImageId;
+use waterui_graphics::{FontSource, RecordingResources, Registered};
 
 #[cfg(feature = "image")]
 use crate::image::CanvasImage;
@@ -48,9 +50,9 @@ fn image_key(image: &CanvasImage) -> ImageKey {
 /// Registered handles kept for as long as the current frame draws them.
 #[derive(Debug, Default)]
 pub struct Resources {
-    fonts: HashMap<FontKey, Registered<Font>>,
+    fonts: HashMap<FontKey, Registered<FontId>>,
     #[cfg(feature = "image")]
-    images: HashMap<ImageKey, Registered<Image<Rgba8>>>,
+    images: HashMap<ImageKey, Registered<ImageId>>,
     used_fonts: HashSet<FontKey>,
     #[cfg(feature = "image")]
     used_images: HashSet<ImageKey>,
@@ -62,8 +64,8 @@ pub struct Resources {
 impl Resources {
     /// The `FontId` for `font`, registering it with `names` on first use.
     ///
-    /// A source the engine rejects is marked failed so it is skipped rather
-    /// than re-registered on every commit.
+    /// A source the registry rejects is marked failed so it is skipped
+    /// rather than re-registered on every commit.
     pub fn font(&mut self, font: &FontData, names: &mut RecordingResources<'_>) -> Option<FontId> {
         let key = font_key(font);
         if let Some(handle) = self.fonts.get(&key) {
@@ -104,8 +106,11 @@ impl Resources {
         if self.failed_images.contains(&key) {
             return None;
         }
-        let data =
-            cherenkov::ImageData::<Rgba8>::new(image.width, image.height, image.pixels.clone());
+        let data = waterui_graphics::ImageData::<Rgba8>::new(
+            image.width,
+            image.height,
+            image.pixels.clone(),
+        );
         match data.and_then(|data| names.image(data)) {
             Ok(handle) => {
                 let id = names.name(&handle);
