@@ -6,18 +6,18 @@
 
 use std::rc::Rc;
 
-use cherenkov::{Paint, WorkingColor};
 use nami::watcher::{Context, WatcherGuard};
 use nami::{Computed, Signal};
 use waterui_core::layout::Point;
 use waterui_graphics::Color;
+use waterui_graphics::draw::{self, Paint, WorkingColor};
 
 use crate::{DrawingContext, StylePaint};
 
 /// A paint signal that rebuilds a gradient when any stop's colour changes.
 ///
 /// The recorder's paint operand takes the whole `Paint` as one live value —
-/// cherenkov names no per-stop operand — so a gradient whose stops are signals
+/// the record layer names no per-stop operand — so a gradient whose stops are signals
 /// rides as a `Signal<Output = Paint>` and a stop change lands as an operand
 /// update, not a scene re-record.
 #[derive(Clone)]
@@ -155,7 +155,7 @@ impl LinearGradient {
         let start = super::conversions::point_to_kurbo(self.start);
         let end = super::conversions::point_to_kurbo(self.end);
         StylePaint::Signal(live_stops(ctx, &self.stops, move |colors| {
-            let mut gradient = cherenkov::LinearGradient::new(start, end);
+            let mut gradient = draw::LinearGradient::new(start, end);
             for (offset, color) in colors {
                 gradient = gradient.stop(offset, color);
             }
@@ -220,8 +220,7 @@ impl RadialGradient {
         let center1 = super::conversions::point_to_kurbo(self.center1);
         let radius1 = f64::from(self.radius1);
         StylePaint::Signal(live_stops(ctx, &self.stops, move |colors| {
-            let mut gradient =
-                cherenkov::RadialGradient::two_point(center0, radius0, center1, radius1);
+            let mut gradient = draw::RadialGradient::two_point(center0, radius0, center1, radius1);
             for (offset, color) in colors {
                 gradient = gradient.stop(offset, color);
             }
@@ -280,11 +279,8 @@ impl ConicGradient {
         let start_angle = f64::from(self.start_angle);
         StylePaint::Signal(live_stops(ctx, &self.stops, move |colors| {
             // Conic stops sweep a full turn from `start_angle`.
-            let mut gradient = cherenkov::SweepGradient::new(
-                center,
-                start_angle,
-                start_angle + core::f64::consts::TAU,
-            );
+            let mut gradient =
+                draw::SweepGradient::new(center, start_angle, start_angle + core::f64::consts::TAU);
             for (offset, color) in colors {
                 gradient = gradient.stop(offset, color);
             }
