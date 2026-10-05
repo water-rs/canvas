@@ -47,9 +47,7 @@ image = ["dep:image", "waterui-graphics/gpu"]
 [dependencies]
 waterui-core = "0.5.1"
 waterui-graphics = { version = "0.5.1", default-features = false }
-# Pinned to =0.11.1 so the [patch.crates-io] nami below (nami#26, `Signal::get`
-# → `snapshot`) is the newest match — crates.io 0.11.2 still ships `get`.
-nami = "=0.11.1"
+nami = "0.12"
 kurbo = "0.13"
 parley = { version = "0.11", default-features = false, features = ["system"] }
 tracing = "0.1"
