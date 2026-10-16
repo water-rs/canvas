@@ -86,34 +86,34 @@ block = { git = "https://github.com/Dicklesworthstone/rust-block", rev = "b39ae8
 # `waterui-*` crate in the graph must resolve to this one commit — a registry
 # `waterui-core` beside the facade's own path dependencies gives two `View`
 # traits in one graph.
-waterui = { git = "https://github.com/water-rs/waterui", branch = "feat/2633-nami-0.13" }
-waterui-assets = { git = "https://github.com/water-rs/waterui", branch = "feat/2633-nami-0.13" }
-waterui-assets-core = { git = "https://github.com/water-rs/waterui", branch = "feat/2633-nami-0.13" }
-waterui-assets-macros = { git = "https://github.com/water-rs/waterui", branch = "feat/2633-nami-0.13" }
-waterui-assets-planner = { git = "https://github.com/water-rs/waterui", branch = "feat/2633-nami-0.13" }
-waterui-backend-core = { git = "https://github.com/water-rs/waterui", branch = "feat/2633-nami-0.13" }
-waterui-controls = { git = "https://github.com/water-rs/waterui", branch = "feat/2633-nami-0.13" }
-waterui-core = { git = "https://github.com/water-rs/waterui", branch = "feat/2633-nami-0.13" }
-waterui-dylib = { git = "https://github.com/water-rs/waterui", branch = "feat/2633-nami-0.13" }
-waterui-form = { git = "https://github.com/water-rs/waterui", branch = "feat/2633-nami-0.13" }
-waterui-graphics = { git = "https://github.com/water-rs/waterui", branch = "feat/2633-nami-0.13" }
-waterui-icon = { git = "https://github.com/water-rs/waterui", branch = "feat/2633-nami-0.13" }
-waterui-inspector-protocol = { git = "https://github.com/water-rs/waterui", branch = "feat/2633-nami-0.13" }
-waterui-internal = { git = "https://github.com/water-rs/waterui", branch = "feat/2633-nami-0.13" }
-waterui-layout = { git = "https://github.com/water-rs/waterui", branch = "feat/2633-nami-0.13" }
-waterui-locale = { git = "https://github.com/water-rs/waterui", branch = "feat/2633-nami-0.13" }
-waterui-macros = { git = "https://github.com/water-rs/waterui", branch = "feat/2633-nami-0.13" }
-waterui-map = { git = "https://github.com/water-rs/waterui", branch = "feat/2633-nami-0.13" }
-waterui-media = { git = "https://github.com/water-rs/waterui", branch = "feat/2633-nami-0.13" }
-waterui-navigation = { git = "https://github.com/water-rs/waterui", branch = "feat/2633-nami-0.13" }
-waterui-preview-protocol = { git = "https://github.com/water-rs/waterui", branch = "feat/2633-nami-0.13" }
-waterui-shape = { git = "https://github.com/water-rs/waterui", branch = "feat/2633-nami-0.13" }
-waterui-testing = { git = "https://github.com/water-rs/waterui", branch = "feat/2633-nami-0.13" }
-waterui-text = { git = "https://github.com/water-rs/waterui", branch = "feat/2633-nami-0.13" }
-waterui-url = { git = "https://github.com/water-rs/waterui", branch = "feat/2633-nami-0.13" }
-waterui-video = { git = "https://github.com/water-rs/waterui", branch = "feat/2633-nami-0.13" }
-waterui-watcher-set = { git = "https://github.com/water-rs/waterui", branch = "feat/2633-nami-0.13" }
-waterui-webview = { git = "https://github.com/water-rs/waterui", branch = "feat/2633-nami-0.13" }
+waterui = { git = "https://github.com/water-rs/waterui", branch = "dev" }
+waterui-assets = { git = "https://github.com/water-rs/waterui", branch = "dev" }
+waterui-assets-core = { git = "https://github.com/water-rs/waterui", branch = "dev" }
+waterui-assets-macros = { git = "https://github.com/water-rs/waterui", branch = "dev" }
+waterui-assets-planner = { git = "https://github.com/water-rs/waterui", branch = "dev" }
+waterui-backend-core = { git = "https://github.com/water-rs/waterui", branch = "dev" }
+waterui-controls = { git = "https://github.com/water-rs/waterui", branch = "dev" }
+waterui-core = { git = "https://github.com/water-rs/waterui", branch = "dev" }
+waterui-dylib = { git = "https://github.com/water-rs/waterui", branch = "dev" }
+waterui-form = { git = "https://github.com/water-rs/waterui", branch = "dev" }
+waterui-graphics = { git = "https://github.com/water-rs/waterui", branch = "dev" }
+waterui-icon = { git = "https://github.com/water-rs/waterui", branch = "dev" }
+waterui-inspector-protocol = { git = "https://github.com/water-rs/waterui", branch = "dev" }
+waterui-internal = { git = "https://github.com/water-rs/waterui", branch = "dev" }
+waterui-layout = { git = "https://github.com/water-rs/waterui", branch = "dev" }
+waterui-locale = { git = "https://github.com/water-rs/waterui", branch = "dev" }
+waterui-macros = { git = "https://github.com/water-rs/waterui", branch = "dev" }
+waterui-map = { git = "https://github.com/water-rs/waterui", branch = "dev" }
+waterui-media = { git = "https://github.com/water-rs/waterui", branch = "dev" }
+waterui-navigation = { git = "https://github.com/water-rs/waterui", branch = "dev" }
+waterui-preview-protocol = { git = "https://github.com/water-rs/waterui", branch = "dev" }
+waterui-shape = { git = "https://github.com/water-rs/waterui", branch = "dev" }
+waterui-testing = { git = "https://github.com/water-rs/waterui", branch = "dev" }
+waterui-text = { git = "https://github.com/water-rs/waterui", branch = "dev" }
+waterui-url = { git = "https://github.com/water-rs/waterui", branch = "dev" }
+waterui-video = { git = "https://github.com/water-rs/waterui", branch = "dev" }
+waterui-watcher-set = { git = "https://github.com/water-rs/waterui", branch = "dev" }
+waterui-webview = { git = "https://github.com/water-rs/waterui", branch = "dev" }
 
 # Extracted component crates. The ones moving to nami 0.13 alongside this
 # crate (barcode, chart, map-gpu, math, video-gpu) ride their own
@@ -121,21 +121,21 @@ waterui-webview = { git = "https://github.com/water-rs/waterui", branch = "feat/
 # are still on nami 0.12; image, particle and svg ride the revisions the
 # framework's own patch table pins. `waterui-canvas` itself is the local
 # crate, patched at the top of the table.
-waterui-barcode = { git = "https://github.com/water-rs/barcode", branch = "feat/nami-0.13" }
-waterui-chart = { git = "https://github.com/water-rs/chart", branch = "feat/nami-0.13" }
+waterui-barcode = { git = "https://github.com/water-rs/barcode", branch = "dev" }
+waterui-chart = { git = "https://github.com/water-rs/chart", branch = "dev" }
 waterui-image = { git = "https://github.com/water-rs/image", rev = "a36e16c555bd78ade9e28fad947af66a52f8f071" }
-waterui-map-gpu = { git = "https://github.com/water-rs/map-gpu", branch = "feat/nami-0.13" }
-waterui-math = { git = "https://github.com/water-rs/math", branch = "feat/nami-0.13" }
+waterui-map-gpu = { git = "https://github.com/water-rs/map-gpu", branch = "dev" }
+waterui-math = { git = "https://github.com/water-rs/math", branch = "dev" }
 waterui-particle = { git = "https://github.com/water-rs/particle", rev = "bf663af85211d1f0bcce511b94ac435efad046a6" }
 waterui-svg = { git = "https://github.com/water-rs/svg", rev = "16f99e021f735d0b1b31c95552b074e953d56418" }
-waterui-video-gpu = { git = "https://github.com/water-rs/video-gpu", branch = "feat/nami-0.13" }
+waterui-video-gpu = { git = "https://github.com/water-rs/video-gpu", branch = "dev" }
 
 # The mounted test graph's backend pair from the sources the framework's
 # own patch table names: `hydrolysis` lives in-tree at `backends/hydrolysis`
 # (water-rs/waterui#1428), so it resolves from the same framework commit
 # as every `waterui-*` crate; its Material 3 theme is still external and
 # follows its `dev`, as the framework's does.
-hydrolysis = { git = "https://github.com/water-rs/waterui", branch = "feat/2633-nami-0.13" }
+hydrolysis = { git = "https://github.com/water-rs/waterui", branch = "dev" }
 hydrolysis-m3 = { git = "https://github.com/water-rs/hydrolysis-m3", branch = "dev" }
 
 # suiteki 0.1.1 on crates.io implements nami-core 0.3's `Signal`; suiteki's
@@ -149,12 +149,12 @@ suiteki = { git = "https://github.com/water-rs/suiteki", branch = "dev" }
 # members are the filter library `.filter(F)`/`.effect(E)` and the engine
 # agree on — every filtrate in the graph must come from this same commit
 # or a filter built on one side is a different type on the other.
-cherenkov = { git = "https://github.com/water-rs/waterui", branch = "feat/2633-nami-0.13" }
-cherenkov-cpu = { git = "https://github.com/water-rs/waterui", branch = "feat/2633-nami-0.13" }
-cherenkov-gpu = { git = "https://github.com/water-rs/waterui", branch = "feat/2633-nami-0.13" }
-filtrate = { git = "https://github.com/water-rs/waterui", branch = "feat/2633-nami-0.13" }
-filtrate-core = { git = "https://github.com/water-rs/waterui", branch = "feat/2633-nami-0.13" }
-filtrate-derive = { git = "https://github.com/water-rs/waterui", branch = "feat/2633-nami-0.13" }
+cherenkov = { git = "https://github.com/water-rs/waterui", branch = "dev" }
+cherenkov-cpu = { git = "https://github.com/water-rs/waterui", branch = "dev" }
+cherenkov-gpu = { git = "https://github.com/water-rs/waterui", branch = "dev" }
+filtrate = { git = "https://github.com/water-rs/waterui", branch = "dev" }
+filtrate-core = { git = "https://github.com/water-rs/waterui", branch = "dev" }
+filtrate-derive = { git = "https://github.com/water-rs/waterui", branch = "dev" }
 
 # Every waterkit crate the codec graph shares types across rides the same
 # commit — a registry `waterkit-core` beside the patched `waterkit-codec` gives
