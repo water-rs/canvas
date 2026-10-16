@@ -6069,12 +6069,12 @@ source = "git+https://github.com/water-rs/waterkit?branch=dev#c94c528423e7e4b975
 [[patch.unused]]
 name = "waterui-barcode"
 version = "0.3.0"
-source = "git+https://github.com/water-rs/barcode?branch=feat%2Fnami-0.13#e344e97a3ea793305399ec38647078c22a014721"
+source = "git+https://github.com/water-rs/barcode?branch=feat%2Fnami-0.13#8243f5e76d44500b276494186848bb412cdfb8bd"
 
 [[patch.unused]]
 name = "waterui-chart"
 version = "0.3.0"
-source = "git+https://github.com/water-rs/chart?branch=feat%2Fnami-0.13#157c2bb6d0f619ebe5c2f0ce89cf73f3260cb876"
+source = "git+https://github.com/water-rs/chart?branch=feat%2Fnami-0.13#03338c6f68310f9488846bdd7e5d3e1d72c36b6c"
 
 [[patch.unused]]
 name = "waterui-image"
@@ -6084,12 +6084,12 @@ source = "git+https://github.com/water-rs/image?rev=a36e16c555bd78ade9e28fad947a
 [[patch.unused]]
 name = "waterui-map-gpu"
 version = "0.3.0"
-source = "git+https://github.com/water-rs/map-gpu?branch=feat%2Fnami-0.13#5c0882a5d757ec8e8be79c169d3bad5e874d0046"
+source = "git+https://github.com/water-rs/map-gpu?branch=feat%2Fnami-0.13#c43bbd46834b81d24a07cb3928bbcafaea50823a"
 
 [[patch.unused]]
 name = "waterui-math"
 version = "0.2.0"
-source = "git+https://github.com/water-rs/math?branch=feat%2Fnami-0.13#225d428231d67d4d593dfa0ad70fb5accf9a6a3a"
+source = "git+https://github.com/water-rs/math?branch=feat%2Fnami-0.13#030506e9963a255b2b677f10db0855ae15acde81"
 
 [[patch.unused]]
 name = "waterui-media"
@@ -6109,7 +6109,7 @@ source = "git+https://github.com/water-rs/waterui?branch=feat%2F2633-nami-0.13#1
 [[patch.unused]]
 name = "waterui-video-gpu"
 version = "0.4.0"
-source = "git+https://github.com/water-rs/video-gpu?branch=feat%2Fnami-0.13#5485c6710b3a6f929bb8e294f801f974200eca93"
+source = "git+https://github.com/water-rs/video-gpu?branch=feat%2Fnami-0.13#f3cbeeb96e7b1d8f4c341bada9f724c0dcd39acf"
 
 [[patch.unused]]
 name = "wgpu-core-deps-wasm"
