@@ -6014,7 +6014,7 @@ source = "git+https://github.com/Dicklesworthstone/rust-block?rev=b39ae859d1ee8e
 [[patch.unused]]
 name = "hydrolysis-m3"
 version = "0.3.1"
-source = "git+https://github.com/water-rs/hydrolysis-m3?branch=dev#7c9ed56b1ac49dd9e1317313f62ddfc12596e644"
+source = "git+https://github.com/water-rs/hydrolysis-m3?branch=main#e95743af08c265bbd424e93a8b9fa15c458ca93d"
 
 [[patch.unused]]
 name = "waterkit-audio"
@@ -6069,12 +6069,12 @@ source = "git+https://github.com/water-rs/waterkit?branch=main#c94c528423e7e4b97
 [[patch.unused]]
 name = "waterui-barcode"
 version = "0.3.0"
-source = "git+https://github.com/water-rs/barcode?branch=dev#e344e97a3ea793305399ec38647078c22a014721"
+source = "git+https://github.com/water-rs/barcode?branch=main#65ffd21d6631a2668b467cf783e77dc8f279f6ea"
 
 [[patch.unused]]
 name = "waterui-chart"
 version = "0.3.0"
-source = "git+https://github.com/water-rs/chart?branch=dev#157c2bb6d0f619ebe5c2f0ce89cf73f3260cb876"
+source = "git+https://github.com/water-rs/chart?branch=main#f72b6bfb23e88e1b208e3c26cf2fefdd41037803"
 
 [[patch.unused]]
 name = "waterui-image"
@@ -6084,12 +6084,12 @@ source = "git+https://github.com/water-rs/image?rev=a36e16c555bd78ade9e28fad947a
 [[patch.unused]]
 name = "waterui-map-gpu"
 version = "0.3.0"
-source = "git+https://github.com/water-rs/map-gpu?branch=dev#5c0882a5d757ec8e8be79c169d3bad5e874d0046"
+source = "git+https://github.com/water-rs/map-gpu?branch=main#10a3cc815bed19e5a96f602f527b6ed2a3f256d5"
 
 [[patch.unused]]
 name = "waterui-math"
 version = "0.2.0"
-source = "git+https://github.com/water-rs/math?branch=dev#225d428231d67d4d593dfa0ad70fb5accf9a6a3a"
+source = "git+https://github.com/water-rs/math?branch=main#32843a5282d5223d67bd2ad2e0543c0a86854b79"
 
 [[patch.unused]]
 name = "waterui-media"
@@ -6109,7 +6109,7 @@ source = "git+https://github.com/water-rs/waterui?branch=dev#5743b524a4d3118c5bb
 [[patch.unused]]
 name = "waterui-video-gpu"
 version = "0.4.0"
-source = "git+https://github.com/water-rs/video-gpu?branch=dev#5485c6710b3a6f929bb8e294f801f974200eca93"
+source = "git+https://github.com/water-rs/video-gpu?branch=main#cb580e7fc6098d34bf3cd545d0bf083075f3f1d7"
 
 [[patch.unused]]
 name = "wgpu-core-deps-wasm"

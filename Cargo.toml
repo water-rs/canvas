@@ -115,28 +115,25 @@ waterui-video = { git = "https://github.com/water-rs/waterui", branch = "dev" }
 waterui-watcher-set = { git = "https://github.com/water-rs/waterui", branch = "dev" }
 waterui-webview = { git = "https://github.com/water-rs/waterui", branch = "dev" }
 
-# Extracted component crates. The ones moving to nami 0.13 alongside this
-# crate (barcode, chart, map-gpu, math, video-gpu) ride their own
-# `feat/nami-0.13` branches, since the revisions the framework's table names
-# are still on nami 0.12; image, particle and svg ride the revisions the
-# framework's own patch table pins. `waterui-canvas` itself is the local
-# crate, patched at the top of the table.
-waterui-barcode = { git = "https://github.com/water-rs/barcode", branch = "dev" }
-waterui-chart = { git = "https://github.com/water-rs/chart", branch = "dev" }
+# Extracted component crates. Migrated Batch 2 crates ride their `main` branches;
+# image, particle and svg keep the revisions compatible with the pinned
+# framework commit. `waterui-canvas` itself is the local crate, patched at the
+# top of the table.
+waterui-barcode = { git = "https://github.com/water-rs/barcode", branch = "main" }
+waterui-chart = { git = "https://github.com/water-rs/chart", branch = "main" }
 waterui-image = { git = "https://github.com/water-rs/image", rev = "a36e16c555bd78ade9e28fad947af66a52f8f071" }
-waterui-map-gpu = { git = "https://github.com/water-rs/map-gpu", branch = "dev" }
-waterui-math = { git = "https://github.com/water-rs/math", branch = "dev" }
+waterui-map-gpu = { git = "https://github.com/water-rs/map-gpu", branch = "main" }
+waterui-math = { git = "https://github.com/water-rs/math", branch = "main" }
 waterui-particle = { git = "https://github.com/water-rs/particle", rev = "bf663af85211d1f0bcce511b94ac435efad046a6" }
 waterui-svg = { git = "https://github.com/water-rs/svg", rev = "16f99e021f735d0b1b31c95552b074e953d56418" }
-waterui-video-gpu = { git = "https://github.com/water-rs/video-gpu", branch = "dev" }
+waterui-video-gpu = { git = "https://github.com/water-rs/video-gpu", branch = "main" }
 
-# The mounted test graph's backend pair from the sources the framework's
-# own patch table names: `hydrolysis` lives in-tree at `backends/hydrolysis`
-# (water-rs/waterui#1428), so it resolves from the same framework commit
-# as every `waterui-*` crate; its Material 3 theme is still external and
-# follows its `dev`, as the framework's does.
+# The mounted test graph's backend pair: `hydrolysis` lives in-tree at
+# `backends/hydrolysis` (water-rs/waterui#1428), so it resolves from the same
+# framework commit as every `waterui-*` crate; its Material 3 theme follows
+# its `main` branch.
 hydrolysis = { git = "https://github.com/water-rs/waterui", branch = "dev" }
-hydrolysis-m3 = { git = "https://github.com/water-rs/hydrolysis-m3", branch = "dev" }
+hydrolysis-m3 = { git = "https://github.com/water-rs/hydrolysis-m3", branch = "main" }
 
 # suiteki 0.1.1 on crates.io implements nami-core 0.3's `Signal`; suiteki's
 # `dev` implements 0.5's (water-rs/suiteki#29), the source the framework's own
