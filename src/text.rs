@@ -1,7 +1,7 @@
 //! Text rendering support for Canvas.
 //!
 //! This module provides text layout and rendering capabilities using Parley
-//! for text layout and Vello for glyph rendering.
+//! for text layout and the Cherenkov engine for glyph rendering.
 
 /// Text metrics information.
 ///
